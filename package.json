@@ -1,0 +1,22 @@
+{
+  "name": "deep-episteme",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "DeepEpisteme — reusable epistemic infrastructure for evidence-graded corpora. Tunisia is the first deployment.",
+  "scripts": {
+    "data": "tsx src/build.ts",
+    "build": "tsx src/build.ts",
+    "test": "tsx src/test.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "2.9.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "tsx": "4.23.1",
+    "typescript": "5.9.3",
+    "@types/node": "^22.0.0"
+  }
+}

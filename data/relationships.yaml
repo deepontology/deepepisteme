@@ -1,0 +1,41 @@
+# Synthetic jurisdiction: Ruritania — relationships
+
+- id: rel-varn-appoints-tell
+  from: elena-varn
+  to: marco-tell
+  type: appointment
+  description: "Elena Varn appointed Marco Tell as Deputy Minister of Infrastructure."
+  confidence: B
+  verification: verified
+  sources: [herald-ruritania-2024-03-10]
+
+- id: rel-kern-alliance-varn
+  from: sofia-kern
+  to: elena-varn
+  type: political-alliance
+  description: "Sofia Kern's Union Party publicly endorsed Elena Varn's infrastructure programme in 2023."
+  confidence: B
+  verification: verified
+  sources: [herald-ruritania-2024-03-10]
+
+- id: rel-nell-board-railways
+  from: dario-nell
+  to: ruritania-railways
+  type: board
+  description: "Dario Nell sits on the board of Ruritanian Railways as its director."
+  confidence: A
+  verification: verified
+  sources: [gazette-2024-decree-11]
+
+# Reported-influence example — moored via documented board edge above (V9)
+- id: rel-voss-advises-varn
+  from: iren-voss
+  to: elena-varn
+  type: reported-influence
+  description: "Valley Observer reports that Iren Voss informally advised Elena Varn on the 2024 transport concession."
+  confidence: C
+  verification: needs-primary-source
+  attributed_to: "Valley Observer — single regional outlet"
+  reasoning: "Valley Observer's November 2023 profile asserts Voss advised the minister informally; the claim tracks Voss's business ties to Ruritanian Railways and is consistent with the inferred advisory position at RR."
+  falsifiable_by: "A ministry statement denying the advisory role, or a gazette record listing formal advisors without Voss, would refute this."
+  sources: [valley-observer-2023-11-02]

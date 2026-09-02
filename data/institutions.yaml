@@ -1,0 +1,46 @@
+# Synthetic jurisdiction: Ruritania — institutions
+
+- id: ministry-infrastructure
+  name_en: Ministry of Infrastructure
+  abbr: MOI
+  type: ministry
+  layer: political
+  summary: "Cabinet ministry responsible for transport and public works."
+  confidence: A
+  verification: verified
+  sources: [gazette-2022-decree-44]
+  active: { start: "1991-01-01" }
+
+- id: union-party
+  name_en: Union Party
+  abbr: UP
+  type: party
+  layer: political
+  summary: "Parliamentary party founded in 2004, centre-right."
+  confidence: B
+  verification: verified
+  sources: [herald-ruritania-2024-03-10]
+  active: { start: "2004-06-01" }
+
+- id: midland-university
+  name_en: Midland University
+  abbr: MU
+  type: university
+  layer: civil
+  summary: "Public university in central Ruritania, founded 1962."
+  confidence: A
+  verification: verified
+  sources: [ruritania-statistical-office-2023]
+  active: { start: "1962-09-01" }
+
+- id: ruritania-railways
+  name_en: Ruritanian Railways
+  abbr: RR
+  type: state-enterprise
+  layer: economic
+  parent: ministry-infrastructure
+  summary: "State railway operator, overseen by the Ministry of Infrastructure."
+  confidence: A
+  verification: verified
+  sources: [gazette-2024-decree-11]
+  active: { start: "1952-01-01" }

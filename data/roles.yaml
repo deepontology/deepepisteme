@@ -1,0 +1,36 @@
+# Synthetic jurisdiction: Ruritania — roles
+
+- id: role-minister-infrastructure
+  title_en: Minister of Infrastructure
+  institution: ministry-infrastructure
+  authority: 82
+  summary: "Cabinet minister for transport and public works."
+  sources: [gazette-2022-decree-44]
+
+- id: role-deputy-minister-infrastructure
+  title_en: Deputy Minister of Infrastructure
+  institution: ministry-infrastructure
+  authority: 60
+  summary: "Deputy to the Minister of Infrastructure."
+  sources: [gazette-2022-decree-44]
+
+- id: role-union-party-leader
+  title_en: Leader of the Union Party
+  institution: union-party
+  authority: 75
+  summary: "Elected leader of the Union Party."
+  sources: [herald-ruritania-2024-03-10]
+
+- id: role-midland-rector
+  title_en: Rector of Midland University
+  institution: midland-university
+  authority: 55
+  summary: "Chief executive of Midland University."
+  sources: [valley-observer-2023-11-02]
+
+- id: role-railways-director
+  title_en: Director of Ruritanian Railways
+  institution: ruritania-railways
+  authority: 45
+  summary: "Director of the state railway operator."
+  sources: [gazette-2024-decree-11]

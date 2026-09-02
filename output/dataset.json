@@ -1,0 +1,795 @@
+{
+  "meta": {
+    "jurisdiction": "Ruritania",
+    "parameters": {
+      "jurisdiction": {
+        "name": "Ruritania",
+        "bbox": {
+          "lonMin": 15,
+          "lonMax": 17,
+          "latMin": 45,
+          "latMax": 47
+        },
+        "gazette": {
+          "vocabulary": [
+            "gazette",
+            "decree text",
+            "décret",
+            "jort"
+          ],
+          "sourcePrefixes": [
+            "gazette-",
+            "decree-",
+            "jort-"
+          ]
+        },
+        "registry": {
+          "label": "Company Register",
+          "idLabel": "CRN",
+          "registries": [
+            "company-register"
+          ]
+        }
+      },
+      "time": {
+        "floor": "1900-01-01",
+        "cutoff": "2026-06-01",
+        "beforeWindowYears": 8,
+        "approxSlackDays": {
+          "year": 365,
+          "month": 92
+        }
+      },
+      "index": {
+        "discount": {
+          "documented": 1,
+          "reported": 0.55,
+          "inferred": 0.2,
+          "unsubstantiated": 0
+        }
+      }
+    },
+    "generated": "2026-09-02T21:41:34.414Z",
+    "counts": {
+      "sources": 5,
+      "institutions": 4,
+      "roles": 5,
+      "people": 6,
+      "positions": 6,
+      "relationships": 4,
+      "events": 2,
+      "eras": 2
+    }
+  },
+  "sources": [
+    {
+      "id": "gazette-2022-decree-44",
+      "title": "Ruritanian Gazette — Decree 44/2022 on ministerial appointments",
+      "publisher": "Ruritanian Gazette",
+      "date": "2022-03-15",
+      "url": "https://example.invalid/gazette/2022/decree-44",
+      "tier": 1,
+      "lang": "en"
+    },
+    {
+      "id": "ruritania-statistical-office-2023",
+      "title": "Statistical Yearbook 2023 — Ruritania",
+      "publisher": "Ruritanian Statistical Office",
+      "date": "2023-06-01",
+      "url": "https://example.invalid/rso/yearbook-2023",
+      "tier": 2,
+      "lang": "en"
+    },
+    {
+      "id": "herald-ruritania-2024-03-10",
+      "title": "Cabinet reshuffle announced — Ruritanian Herald",
+      "publisher": "Ruritanian Herald",
+      "date": "2024-03-10",
+      "url": "https://example.invalid/herald/2024-03-10/reshuffle",
+      "tier": 3,
+      "lang": "en"
+    },
+    {
+      "id": "valley-observer-2023-11-02",
+      "title": "The Valley Observer — profile of the Midland University rector",
+      "publisher": "Valley Observer",
+      "date": "2023-11-02",
+      "url": "https://example.invalid/valley-observer/2023-11-02/rector",
+      "tier": 4,
+      "lang": "en"
+    },
+    {
+      "id": "gazette-2024-decree-11",
+      "title": "Ruritanian Gazette — Decree 11/2024 on transport concessions",
+      "publisher": "Ruritanian Gazette",
+      "date": "2024-02-01",
+      "url": "https://example.invalid/gazette/2024/decree-11",
+      "tier": 1,
+      "lang": "en"
+    }
+  ],
+  "institutions": [
+    {
+      "id": "ministry-infrastructure",
+      "name_en": "Ministry of Infrastructure",
+      "abbr": "MOI",
+      "aliases": [],
+      "notes": [],
+      "type": "ministry",
+      "layer": "political",
+      "parent": null,
+      "active": {
+        "start": "1991-01-01"
+      },
+      "order": 100,
+      "summary": "Cabinet ministry responsible for transport and public works.",
+      "confidence": "A",
+      "verification": "verified",
+      "sources": [
+        "gazette-2022-decree-44"
+      ],
+      "basis": "documented"
+    },
+    {
+      "id": "union-party",
+      "name_en": "Union Party",
+      "abbr": "UP",
+      "aliases": [],
+      "notes": [],
+      "type": "party",
+      "layer": "political",
+      "parent": null,
+      "active": {
+        "start": "2004-06-01"
+      },
+      "order": 100,
+      "summary": "Parliamentary party founded in 2004, centre-right.",
+      "confidence": "B",
+      "verification": "verified",
+      "sources": [
+        "herald-ruritania-2024-03-10"
+      ],
+      "basis": "reported"
+    },
+    {
+      "id": "midland-university",
+      "name_en": "Midland University",
+      "abbr": "MU",
+      "aliases": [],
+      "notes": [],
+      "type": "university",
+      "layer": "civil",
+      "parent": null,
+      "active": {
+        "start": "1962-09-01"
+      },
+      "order": 100,
+      "summary": "Public university in central Ruritania, founded 1962.",
+      "confidence": "A",
+      "verification": "verified",
+      "sources": [
+        "ruritania-statistical-office-2023"
+      ],
+      "basis": "documented"
+    },
+    {
+      "id": "ruritania-railways",
+      "name_en": "Ruritanian Railways",
+      "abbr": "RR",
+      "aliases": [],
+      "notes": [],
+      "type": "state-enterprise",
+      "layer": "economic",
+      "parent": "ministry-infrastructure",
+      "active": {
+        "start": "1952-01-01"
+      },
+      "order": 100,
+      "summary": "State railway operator, overseen by the Ministry of Infrastructure.",
+      "confidence": "A",
+      "verification": "verified",
+      "sources": [
+        "gazette-2024-decree-11"
+      ],
+      "basis": "documented"
+    }
+  ],
+  "roles": [
+    {
+      "id": "role-minister-infrastructure",
+      "title_en": "Minister of Infrastructure",
+      "institution": "ministry-infrastructure",
+      "authority": 82,
+      "summary": "Cabinet minister for transport and public works.",
+      "sources": [
+        "gazette-2022-decree-44"
+      ]
+    },
+    {
+      "id": "role-deputy-minister-infrastructure",
+      "title_en": "Deputy Minister of Infrastructure",
+      "institution": "ministry-infrastructure",
+      "authority": 60,
+      "summary": "Deputy to the Minister of Infrastructure.",
+      "sources": [
+        "gazette-2022-decree-44"
+      ]
+    },
+    {
+      "id": "role-union-party-leader",
+      "title_en": "Leader of the Union Party",
+      "institution": "union-party",
+      "authority": 75,
+      "summary": "Elected leader of the Union Party.",
+      "sources": [
+        "herald-ruritania-2024-03-10"
+      ]
+    },
+    {
+      "id": "role-midland-rector",
+      "title_en": "Rector of Midland University",
+      "institution": "midland-university",
+      "authority": 55,
+      "summary": "Chief executive of Midland University.",
+      "sources": [
+        "valley-observer-2023-11-02"
+      ]
+    },
+    {
+      "id": "role-railways-director",
+      "title_en": "Director of Ruritanian Railways",
+      "institution": "ruritania-railways",
+      "authority": 45,
+      "summary": "Director of the state railway operator.",
+      "sources": [
+        "gazette-2024-decree-11"
+      ]
+    }
+  ],
+  "people": [
+    {
+      "id": "elena-varn",
+      "name_en": "Elena Varn",
+      "aliases": [],
+      "nationality": [],
+      "layers": [
+        "political"
+      ],
+      "tagline": "Minister of Infrastructure (2022–2024)",
+      "summary": "Career civil servant; appointed Minister of Infrastructure in March 2022.",
+      "trajectory": [],
+      "confidence": "A",
+      "verification": "verified",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "gazette-2022-decree-44"
+      ],
+      "basis": "documented"
+    },
+    {
+      "id": "marco-tell",
+      "name_en": "Marco Tell",
+      "aliases": [
+        "M. Tell"
+      ],
+      "nationality": [],
+      "layers": [
+        "political"
+      ],
+      "tagline": "Deputy Minister of Infrastructure",
+      "summary": "Former railway engineer; deputy minister from 2022.",
+      "trajectory": [],
+      "confidence": "B",
+      "verification": "verified",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "herald-ruritania-2024-03-10"
+      ],
+      "basis": "reported"
+    },
+    {
+      "id": "sofia-kern",
+      "name_en": "Sofia Kern",
+      "aliases": [],
+      "nationality": [],
+      "layers": [
+        "political"
+      ],
+      "tagline": "Leader of the Union Party",
+      "summary": "Elected party leader in January 2021; previously mayor of Rivertown.",
+      "trajectory": [],
+      "confidence": "B",
+      "verification": "verified",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "herald-ruritania-2024-03-10"
+      ],
+      "basis": "reported"
+    },
+    {
+      "id": "jan-holt",
+      "name_en": "Jan Holt",
+      "aliases": [],
+      "nationality": [],
+      "layers": [
+        "civil"
+      ],
+      "tagline": "Rector of Midland University",
+      "summary": "Professor of economics; rector since 2020.",
+      "trajectory": [],
+      "confidence": "B",
+      "verification": "verified",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "valley-observer-2023-11-02"
+      ],
+      "basis": "reported"
+    },
+    {
+      "id": "dario-nell",
+      "name_en": "Dario Nell",
+      "aliases": [],
+      "nationality": [],
+      "layers": [
+        "economic"
+      ],
+      "tagline": "Director of Ruritanian Railways",
+      "summary": "Railway executive; director since 2019.",
+      "trajectory": [],
+      "confidence": "A",
+      "verification": "verified",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "gazette-2024-decree-11"
+      ],
+      "basis": "documented"
+    },
+    {
+      "id": "iren-voss",
+      "name_en": "Iren Voss",
+      "aliases": [],
+      "nationality": [],
+      "layers": [
+        "political",
+        "economic"
+      ],
+      "tagline": "Business figure — reported advisor to the ministry",
+      "summary": "Reported to have advised the Ministry of Infrastructure on the 2024 concession; no primary record located.",
+      "trajectory": [],
+      "confidence": "C",
+      "verification": "needs-primary-source",
+      "attributed_to": "Valley Observer (regional outlet — single source)",
+      "reasoning": "Valley Observer's November 2023 profile names Voss as an informal advisor to the ministry, consistent with Voss's known business ties to Ruritanian Railways. No gazette or contract record confirms the advisory role.",
+      "falsifiable_by": "A gazette decree listing formal advisors for the 2024 concession, or a ministry statement denying the advisory role, would refute this.",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "valley-observer-2023-11-02"
+      ],
+      "basis": "inferred"
+    }
+  ],
+  "positions": [
+    {
+      "id": "pos-varn-minister-2022",
+      "role": "role-minister-infrastructure",
+      "holder": "elena-varn",
+      "start": "2022-03-15",
+      "end": "2024-03-10",
+      "acting": false,
+      "confidence": "A",
+      "verification": "verified",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "gazette-2022-decree-44"
+      ],
+      "basis": "documented",
+      "interval": {
+        "startEarliest": 1647302400000,
+        "startLatest": 1647302400000,
+        "endEarliest": 1710028800000,
+        "endLatest": 1710028800000,
+        "startPrecision": "day",
+        "endPrecision": "day",
+        "status": "ended",
+        "raw": {
+          "start": "2022-03-15",
+          "end": "2024-03-10"
+        }
+      },
+      "years": 1.9877204870736565,
+      "roleTitle": "Minister of Infrastructure"
+    },
+    {
+      "id": "pos-tell-deputy-2022",
+      "role": "role-deputy-minister-infrastructure",
+      "holder": "marco-tell",
+      "start": "2022-03-15",
+      "end": "ongoing",
+      "acting": false,
+      "confidence": "B",
+      "verification": "verified",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "herald-ruritania-2024-03-10"
+      ],
+      "basis": "reported",
+      "interval": {
+        "startEarliest": 1647302400000,
+        "startLatest": 1647302400000,
+        "endEarliest": null,
+        "endLatest": null,
+        "startPrecision": "day",
+        "endPrecision": "after",
+        "status": "ongoing",
+        "raw": {
+          "start": "2022-03-15",
+          "end": "ongoing"
+        }
+      },
+      "years": 4.213638883755313,
+      "roleTitle": "Deputy Minister of Infrastructure"
+    },
+    {
+      "id": "pos-kern-leader-2021",
+      "role": "role-union-party-leader",
+      "holder": "sofia-kern",
+      "start": "2021-01-20",
+      "end": "ongoing",
+      "acting": false,
+      "confidence": "B",
+      "verification": "verified",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "herald-ruritania-2024-03-10"
+      ],
+      "basis": "reported",
+      "interval": {
+        "startEarliest": 1611100800000,
+        "startLatest": 1611100800000,
+        "endEarliest": null,
+        "endLatest": null,
+        "startPrecision": "day",
+        "endPrecision": "after",
+        "status": "ongoing",
+        "raw": {
+          "start": "2021-01-20",
+          "end": "ongoing"
+        }
+      },
+      "years": 5.360821919683498,
+      "roleTitle": "Leader of the Union Party"
+    },
+    {
+      "id": "pos-holt-rector-2020",
+      "role": "role-midland-rector",
+      "holder": "jan-holt",
+      "start": "2020-09-01",
+      "end": "ongoing",
+      "acting": false,
+      "confidence": "B",
+      "verification": "verified",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "valley-observer-2023-11-02"
+      ],
+      "basis": "reported",
+      "interval": {
+        "startEarliest": 1598918400000,
+        "startLatest": 1598918400000,
+        "endEarliest": null,
+        "endLatest": null,
+        "startPrecision": "day",
+        "endPrecision": "after",
+        "status": "ongoing",
+        "raw": {
+          "start": "2020-09-01",
+          "end": "ongoing"
+        }
+      },
+      "years": 5.746866807668877,
+      "roleTitle": "Rector of Midland University"
+    },
+    {
+      "id": "pos-nell-railways-2019",
+      "role": "role-railways-director",
+      "holder": "dario-nell",
+      "start": "2019-06-01",
+      "end": "ongoing",
+      "acting": false,
+      "confidence": "A",
+      "verification": "verified",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "gazette-2024-decree-11"
+      ],
+      "basis": "documented",
+      "interval": {
+        "startEarliest": 1559347200000,
+        "startLatest": 1559347200000,
+        "endEarliest": null,
+        "endLatest": null,
+        "startPrecision": "day",
+        "endPrecision": "after",
+        "status": "ongoing",
+        "raw": {
+          "start": "2019-06-01",
+          "end": "ongoing"
+        }
+      },
+      "years": 7.000828216869614,
+      "roleTitle": "Director of Ruritanian Railways"
+    },
+    {
+      "id": "pos-voss-advisor-2023",
+      "role": "role-railways-director",
+      "holder": "iren-voss",
+      "start": "~2023-06",
+      "end": "2024-01",
+      "acting": false,
+      "confidence": "C",
+      "verification": "needs-primary-source",
+      "attributed_to": "Valley Observer — single regional source, no contract record",
+      "reasoning": "Valley Observer places Voss in an advisory capacity at Ruritanian Railways from mid-2023. The appointment was never gazetted, so the start is widened to ~2023-06 and the end is inferred from the source's November 2023 publication date.",
+      "falsifiable_by": "A gazette decree or RR board minute naming the director for this period without Voss, or a contract record showing a different advisor, would refute this.",
+      "disputes": [],
+      "notes": [],
+      "sources": [
+        "valley-observer-2023-11-02"
+      ],
+      "basis": "inferred",
+      "interval": {
+        "startEarliest": 1677628800000,
+        "startLatest": 1696118399000,
+        "endEarliest": 1704067200000,
+        "endLatest": 1706745599000,
+        "startPrecision": "approx",
+        "endPrecision": "month",
+        "status": "ended",
+        "raw": {
+          "start": "~2023-06",
+          "end": "2024-01"
+        }
+      },
+      "years": 0.5872810529990349,
+      "roleTitle": "Director of Ruritanian Railways"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "rel-varn-appoints-tell",
+      "from": "elena-varn",
+      "to": "marco-tell",
+      "type": "appointment",
+      "description": "Elena Varn appointed Marco Tell as Deputy Minister of Infrastructure.",
+      "confidence": "B",
+      "verification": "verified",
+      "disputes": [],
+      "sources": [
+        "herald-ruritania-2024-03-10"
+      ],
+      "notes": [],
+      "basis": "reported",
+      "interval": {
+        "startEarliest": -2208988800000,
+        "startLatest": 1780272000000,
+        "endEarliest": null,
+        "endLatest": 1780272000000,
+        "startPrecision": "unknown",
+        "endPrecision": "unknown",
+        "status": "unknown",
+        "raw": {
+          "start": null,
+          "end": null
+        }
+      }
+    },
+    {
+      "id": "rel-kern-alliance-varn",
+      "from": "sofia-kern",
+      "to": "elena-varn",
+      "type": "political-alliance",
+      "description": "Sofia Kern's Union Party publicly endorsed Elena Varn's infrastructure programme in 2023.",
+      "confidence": "B",
+      "verification": "verified",
+      "disputes": [],
+      "sources": [
+        "herald-ruritania-2024-03-10"
+      ],
+      "notes": [],
+      "basis": "reported",
+      "interval": {
+        "startEarliest": -2208988800000,
+        "startLatest": 1780272000000,
+        "endEarliest": null,
+        "endLatest": 1780272000000,
+        "startPrecision": "unknown",
+        "endPrecision": "unknown",
+        "status": "unknown",
+        "raw": {
+          "start": null,
+          "end": null
+        }
+      }
+    },
+    {
+      "id": "rel-nell-board-railways",
+      "from": "dario-nell",
+      "to": "ruritania-railways",
+      "type": "board",
+      "description": "Dario Nell sits on the board of Ruritanian Railways as its director.",
+      "confidence": "A",
+      "verification": "verified",
+      "disputes": [],
+      "sources": [
+        "gazette-2024-decree-11"
+      ],
+      "notes": [],
+      "basis": "documented",
+      "interval": {
+        "startEarliest": -2208988800000,
+        "startLatest": 1780272000000,
+        "endEarliest": null,
+        "endLatest": 1780272000000,
+        "startPrecision": "unknown",
+        "endPrecision": "unknown",
+        "status": "unknown",
+        "raw": {
+          "start": null,
+          "end": null
+        }
+      }
+    },
+    {
+      "id": "rel-voss-advises-varn",
+      "from": "iren-voss",
+      "to": "elena-varn",
+      "type": "reported-influence",
+      "description": "Valley Observer reports that Iren Voss informally advised Elena Varn on the 2024 transport concession.",
+      "confidence": "C",
+      "verification": "needs-primary-source",
+      "attributed_to": "Valley Observer — single regional outlet",
+      "reasoning": "Valley Observer's November 2023 profile asserts Voss advised the minister informally; the claim tracks Voss's business ties to Ruritanian Railways and is consistent with the inferred advisory position at RR.",
+      "falsifiable_by": "A ministry statement denying the advisory role, or a gazette record listing formal advisors without Voss, would refute this.",
+      "disputes": [],
+      "sources": [
+        "valley-observer-2023-11-02"
+      ],
+      "notes": [],
+      "basis": "inferred",
+      "interval": {
+        "startEarliest": -2208988800000,
+        "startLatest": 1780272000000,
+        "endEarliest": null,
+        "endLatest": 1780272000000,
+        "startPrecision": "unknown",
+        "endPrecision": "unknown",
+        "status": "unknown",
+        "raw": {
+          "start": null,
+          "end": null
+        }
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": "ev-cabinet-reshuffle-2024",
+      "date": "2024-03-10",
+      "title_en": "Cabinet reshuffle — Ministry of Infrastructure",
+      "category": "political",
+      "location": [],
+      "documents": [],
+      "materials": [],
+      "causes": [],
+      "consequences": [],
+      "rupture": false,
+      "summary": "Prime Minister announced a cabinet reshuffle; Elena Varn left the Ministry of Infrastructure and Marco Tell continued as deputy.",
+      "actors": [
+        "elena-varn",
+        "marco-tell"
+      ],
+      "institutions": [
+        "ministry-infrastructure"
+      ],
+      "confidence": "B",
+      "verification": "verified",
+      "contested": [],
+      "disputes": [],
+      "sources": [
+        "herald-ruritania-2024-03-10"
+      ],
+      "basis": "reported",
+      "interval": {
+        "startEarliest": 1710028800000,
+        "startLatest": 1710028800000,
+        "endEarliest": 1710028800000,
+        "endLatest": 1710028800000,
+        "startPrecision": "day",
+        "endPrecision": "day",
+        "status": "ended",
+        "raw": {
+          "start": "2024-03-10",
+          "end": "2024-03-10"
+        }
+      }
+    },
+    {
+      "id": "ev-transport-concession-2024",
+      "date": "2024-02-01",
+      "title_en": "Transport concession decree published",
+      "category": "economic",
+      "location": [],
+      "documents": [
+        "gazette-2024-decree-11"
+      ],
+      "materials": [],
+      "causes": [],
+      "consequences": [],
+      "rupture": false,
+      "summary": "Gazette Decree 11/2024 awarded a transport concession overseen by Ruritanian Railways.",
+      "actors": [
+        "dario-nell"
+      ],
+      "institutions": [
+        "ruritania-railways",
+        "ministry-infrastructure"
+      ],
+      "confidence": "A",
+      "verification": "verified",
+      "contested": [],
+      "disputes": [],
+      "sources": [
+        "gazette-2024-decree-11"
+      ],
+      "basis": "documented",
+      "interval": {
+        "startEarliest": 1706745600000,
+        "startLatest": 1706745600000,
+        "endEarliest": 1706745600000,
+        "endLatest": 1706745600000,
+        "startPrecision": "day",
+        "endPrecision": "day",
+        "status": "ended",
+        "raw": {
+          "start": "2024-02-01",
+          "end": "2024-02-01"
+        }
+      }
+    }
+  ],
+  "eras": [
+    {
+      "id": "era-reform-1991-2004",
+      "label_en": "Reform Era (1991–2004)",
+      "start": "1991-01-01",
+      "end": "2004-06-01",
+      "thesis": "Post-railway nationalisation; the infrastructure ministry grew faster than its oversight mechanisms.",
+      "accent": "#2b6cb0",
+      "sources": [
+        "ruritania-statistical-office-2023"
+      ]
+    },
+    {
+      "id": "era-coalition-2004-2026",
+      "label_en": "Coalition Era (2004–2026)",
+      "start": "2004-06-01",
+      "end": "2026-06-01",
+      "thesis": "Multi-party coalition governments; the party–ministry–railway triangle concentrated contracting authority.",
+      "accent": "#805ad5",
+      "sources": [
+        "herald-ruritania-2024-03-10"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+# Synthetic jurisdiction: Ruritania — people
+
+- id: elena-varn
+  name_en: Elena Varn
+  layers: [political]
+  tagline: "Minister of Infrastructure (2022–2024)"
+  summary: "Career civil servant; appointed Minister of Infrastructure in March 2022."
+  confidence: A
+  verification: verified
+  sources: [gazette-2022-decree-44]
+
+- id: marco-tell
+  name_en: Marco Tell
+  aliases: ["M. Tell"]
+  layers: [political]
+  tagline: "Deputy Minister of Infrastructure"
+  summary: "Former railway engineer; deputy minister from 2022."
+  confidence: B
+  verification: verified
+  sources: [herald-ruritania-2024-03-10]
+
+- id: sofia-kern
+  name_en: Sofia Kern
+  layers: [political]
+  tagline: "Leader of the Union Party"
+  summary: "Elected party leader in January 2021; previously mayor of Rivertown."
+  confidence: B
+  verification: verified
+  sources: [herald-ruritania-2024-03-10]
+
+- id: jan-holt
+  name_en: Jan Holt
+  layers: [civil]
+  tagline: "Rector of Midland University"
+  summary: "Professor of economics; rector since 2020."
+  confidence: B
+  verification: verified
+  sources: [valley-observer-2023-11-02]
+
+- id: dario-nell
+  name_en: Dario Nell
+  layers: [economic]
+  tagline: "Director of Ruritanian Railways"
+  summary: "Railway executive; director since 2019."
+  confidence: A
+  verification: verified
+  sources: [gazette-2024-decree-11]
+
+# A deliberately disputed figure — demonstrates C/D + attribution handling
+- id: iren-voss
+  name_en: Iren Voss
+  layers: [political, economic]
+  tagline: "Business figure — reported advisor to the ministry"
+  summary: "Reported to have advised the Ministry of Infrastructure on the 2024 concession; no primary record located."
+  confidence: C
+  verification: needs-primary-source
+  attributed_to: "Valley Observer (regional outlet — single source)"
+  reasoning: "Valley Observer's November 2023 profile names Voss as an informal advisor to the ministry, consistent with Voss's known business ties to Ruritanian Railways. No gazette or contract record confirms the advisory role."
+  falsifiable_by: "A gazette decree listing formal advisors for the 2024 concession, or a ministry statement denying the advisory role, would refute this."
+  sources: [valley-observer-2023-11-02]

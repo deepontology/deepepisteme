@@ -1,0 +1,24 @@
+# Synthetic jurisdiction: Ruritania — events
+
+- id: ev-cabinet-reshuffle-2024
+  date: "2024-03-10"
+  title_en: "Cabinet reshuffle — Ministry of Infrastructure"
+  category: political
+  summary: "Prime Minister announced a cabinet reshuffle; Elena Varn left the Ministry of Infrastructure and Marco Tell continued as deputy."
+  actors: [elena-varn, marco-tell]
+  institutions: [ministry-infrastructure]
+  confidence: B
+  verification: verified
+  sources: [herald-ruritania-2024-03-10]
+
+- id: ev-transport-concession-2024
+  date: "2024-02-01"
+  title_en: "Transport concession decree published"
+  category: economic
+  summary: "Gazette Decree 11/2024 awarded a transport concession overseen by Ruritanian Railways."
+  actors: [dario-nell]
+  institutions: [ruritania-railways, ministry-infrastructure]
+  documents: ["gazette-2024-decree-11"]
+  confidence: A
+  verification: verified
+  sources: [gazette-2024-decree-11]

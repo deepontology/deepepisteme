@@ -1,0 +1,41 @@
+# Jurisdiction parameters — the only file a fork must edit to retarget Layer 1.
+#
+# Parameters are configuration, not claims: no basis, no sources, no confidence.
+# The build validates this file strictly (unknown key = build failure) and emits
+# it into dataset.json meta.parameters, so every derived number is recomputable.
+#
+# This template ships with the synthetic jurisdiction "Ruritania" — a fictional
+# parliamentary republic used to demonstrate portability. A real fork replaces
+# the values below with its own jurisdiction's facts.
+#
+# See DeepTunisia's data/parameters.yaml for a production example (Tunisia).
+
+jurisdiction:
+  name: Ruritania
+  bbox: { lonMin: 15, lonMax: 17, latMin: 45, latMax: 47 }
+  # What counts as "the gazette" for the review-overclaim guard (V23): the
+  # vocabulary a review note may not claim without a gazette source, and the
+  # source-id prefixes that do count as gazette citations.
+  gazette:
+    vocabulary: [gazette, "decree text", décret, jort]
+    sourcePrefixes: ["gazette-", "decree-", "jort-"]
+  registry:
+    label: "Company Register"
+    idLabel: CRN
+    registries: ["company-register"]
+
+time:
+  # Dataset floor and research cutoff. Nothing is asserted before the floor or
+  # after the cutoff. The cutoff tracks the feed's last verified coverage.
+  floor: "1900-01-01"
+  cutoff: "2026-06-01"
+  # How far back an open-ended "in post by X" bound may reach (plausible
+  # ceiling for a senior tenure in this jurisdiction).
+  beforeWindowYears: 8
+  # Widen "approximately" tokens: year-precision vs month-precision slack.
+  approxSlackDays: { year: 365, month: 92 }
+
+index:
+  # Basis-discount weights for the ranked indices. Unsubstantiated evidence
+  # weighs nothing in a published score.
+  discount: { documented: 1, reported: 0.55, inferred: 0.2, unsubstantiated: 0 }

@@ -1,0 +1,59 @@
+# Synthetic jurisdiction: Ruritania — positions
+
+- id: pos-varn-minister-2022
+  role: role-minister-infrastructure
+  holder: elena-varn
+  start: "2022-03-15"
+  end: "2024-03-10"
+  confidence: A
+  verification: verified
+  sources: [gazette-2022-decree-44]
+
+- id: pos-tell-deputy-2022
+  role: role-deputy-minister-infrastructure
+  holder: marco-tell
+  start: "2022-03-15"
+  end: ongoing
+  confidence: B
+  verification: verified
+  sources: [herald-ruritania-2024-03-10]
+
+- id: pos-kern-leader-2021
+  role: role-union-party-leader
+  holder: sofia-kern
+  start: "2021-01-20"
+  end: ongoing
+  confidence: B
+  verification: verified
+  sources: [herald-ruritania-2024-03-10]
+
+- id: pos-holt-rector-2020
+  role: role-midland-rector
+  holder: jan-holt
+  start: "2020-09-01"
+  end: ongoing
+  confidence: B
+  verification: verified
+  sources: [valley-observer-2023-11-02]
+
+- id: pos-nell-railways-2019
+  role: role-railways-director
+  holder: dario-nell
+  start: "2019-06-01"
+  end: ongoing
+  confidence: A
+  verification: verified
+  sources: [gazette-2024-decree-11]
+
+# Inferred span example — demonstrates V18 (reasoning + falsifier required)
+- id: pos-voss-advisor-2023
+  role: role-railways-director
+  holder: iren-voss
+  start: "~2023-06"
+  end: "2024-01"
+  confidence: C
+  verification: needs-primary-source
+  attributed_to: "Valley Observer — single regional source, no contract record"
+  reasoning: "Valley Observer places Voss in an advisory capacity at Ruritanian Railways from mid-2023. The appointment was never gazetted, so the start is widened to ~2023-06 and the end is inferred from the source's November 2023 publication date."
+  falsifiable_by: "A gazette decree or RR board minute naming the director for this period without Voss, or a contract record showing a different advisor, would refute this."
+  sources: [valley-observer-2023-11-02]
