@@ -1,5 +1,7 @@
 # DeepEpisteme — reusable epistemic infrastructure
 
+[![CI](https://github.com/deepontology/deep-episteme/actions/workflows/ci.yml/badge.svg)](https://github.com/deepontology/deep-episteme/actions/workflows/ci.yml)
+
 **DeepEpisteme is the engine. Tunisia is the first deployment.**
 
 This repository is the extraction of the jurisdiction-agnostic layer from
@@ -86,9 +88,9 @@ changes configuration — not validators.
 
 Skeleton — extraction begun, not complete. The crate demonstrates that the
 engine is separable and portable; the full DeepTunisia validator suite (V1–V24),
-media/world layers, and CI portability proof are tracked as funded milestones.
+media/world layers, and CI portability proof are tracked as later milestones.
 
-See `docs/plans/grant-readiness-v0.1.md` in the DeepTunisia repository for the
+See the DeepTunisia repository for the
 milestone map. This directory is a sibling to that repository, not a subdirectory,
 so the Tunis corpus is never at risk from an extraction edit.
 
