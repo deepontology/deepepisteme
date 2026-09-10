@@ -1,6 +1,6 @@
 # DeepEpisteme — reusable epistemic infrastructure
 
-[![CI](https://github.com/deepontology/deep-episteme/actions/workflows/ci.yml/badge.svg)](https://github.com/deepontology/deep-episteme/actions/workflows/ci.yml)
+[![CI](https://github.com/deepontology/deepepisteme/actions/workflows/ci.yml/badge.svg)](https://github.com/deepontology/deepepisteme/actions/workflows/ci.yml)
 
 **DeepEpisteme is the engine. Tunisia is the first deployment.**
 
