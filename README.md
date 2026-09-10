@@ -46,7 +46,7 @@ directory, with its own parameters, through the same validators Tunisia uses.
 ## Quick start
 
 ```bash
-npm install
+npm ci
 npm run data   # build src/generated/dataset.json + static/dataset.json
 npm run test   # gate: counts, deriveBasis, intervals, splicer, matcher
 npm run check  # tsc --noEmit

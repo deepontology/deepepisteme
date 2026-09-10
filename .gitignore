@@ -2,6 +2,7 @@ node_modules/
 dist/
 src/generated/
 static/
+output/
 .DS_Store
 *.log
 .env
