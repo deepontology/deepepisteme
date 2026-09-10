@@ -20,15 +20,47 @@
  *   ongoing           still in place at the dataset cutoff, positively confirmed
  *   verified:2025-12  documented in place at this date; may have continued after
  *   ?                 unknown
+ *
+ * What certainty means
+ * --------------------
+ *   an interval is CERTAINLY active at t when every reading of the evidence
+ *   places it active at t: t is inside the confident start core and no later
+ *   than the certainty horizon. POSSIBLY active means some reading does.
+ *
+ *   The certainty horizon is `lastObserved`: the latest instant at which the
+ *   interval is positively observed active. It is the end bound for a known
+ *   end, the verification instant for `verified:`, the confirming observation
+ *   for `ongoing`, and the latest possible start for `?` (a start with no end
+ *   is one observation, not six years of them).
+ *
+ *   Invariant, checked by the generated property tests: certain(t) implies
+ *   possible(t) for every interval and every t. Nothing is asserted after the
+ *   dataset cutoff.
+ *
+ * Month-only observations
+ * -----------------------
+ *   `verified:2025-12` establishes presence at the month midpoint for
+ *   certainty, and does not auto-extend that certainty to the last day of the
+ *   month. The month's end remains possible, not certain.
+ *
+ * Ongoing confirmation
+ * --------------------
+ *   `ongoing` means positively confirmed in place at the cutoff. That requires
+ *   an observation dated within ONGOING_CONFIRMATION_DAYS of the cutoff. A
+ *   record whose last observation is older is downgraded to `last-verified` at
+ *   build time (with a warning), and certainty stops at the observation.
  */
 
-import { getParameters } from './config.ts';
+import { getParameters } from './parameters.ts';
 
 let DATASET_CUTOFF = Date.UTC(2026, 5, 1); // 2026-06-01 default (Ruritania)
 let DATASET_FLOOR = Date.UTC(1900, 0, 1);
 let BEFORE_WINDOW_YEARS = 8;
 let BEFORE_WINDOW_MS = 8 * 365.2425 * 86_400_000;
 let APPROX_SLACK_DAYS: { year: number; month: number } = { year: 365, month: 92 };
+
+/** How recent an observation must be for `ongoing` to remain certain at cutoff. */
+export const ONGOING_CONFIRMATION_DAYS = 90;
 
 export function configureTime(p: {
   floor: string;
@@ -64,6 +96,13 @@ export interface ResolvedInterval {
   startPrecision: Precision;
   endPrecision: Precision;
   status: IntervalStatus;
+  /**
+   * Latest instant at which the interval is positively observed active. The
+   * certainty horizon: `certainlyActive` never returns true after it. Null only
+   * for an unconfirmed `ongoing` interval, which the build resolves before
+   * emission.
+   */
+  lastObserved: number | null;
   trimmed?: boolean;
   startClamped?: boolean;
   raw: { start: string | null; end: string | null };
@@ -160,6 +199,9 @@ export function resolveInterval(
   let endLatest: number | null;
   let endPrecision: Precision;
   let status: IntervalStatus;
+  // The certainty horizon is finalized after the clamps below, because a clamp
+  // can move a known end up to the start.
+  let observed: number | null;
 
   const endToken = (rawEnd ?? '?').trim();
 
@@ -168,23 +210,30 @@ export function resolveInterval(
     endLatest = null;
     endPrecision = 'after';
     status = 'ongoing';
+    observed = null;
   } else if (endToken.startsWith('verified:')) {
     const at = parseDateEdge(endToken.slice('verified:'.length));
+    // Month-only observation: certainty at the month midpoint, not its last
+    // day. A day-precision verification observes that day exactly.
+    const instant = at.precision === 'month' ? Math.floor((at.earliest + at.latest) / 2) : at.latest;
     endEarliest = Math.min(at.latest, DATASET_CUTOFF);
     endLatest = DATASET_CUTOFF;
     endPrecision = at.precision;
     status = 'last-verified';
+    observed = Math.min(instant, DATASET_CUTOFF);
   } else if (endToken === '?') {
     endEarliest = null;
     endLatest = DATASET_CUTOFF;
     endPrecision = 'unknown';
     status = 'unknown';
+    observed = null;
   } else {
     const e = parseDateEdge(endToken);
     endEarliest = e.earliest;
     endLatest = e.latest;
     endPrecision = e.precision;
     status = 'ended';
+    observed = e.earliest;
   }
 
   if (endLatest !== null && endLatest < start.earliest && !opts?.allowEnvelopeTrim) {
@@ -199,6 +248,14 @@ export function resolveInterval(
     trimmed = true;
   }
 
+  // Finalize the certainty horizon from the post-clamp values. An unknown end
+  // has exactly one observation: the latest instant the start can fall on.
+  let lastObserved: number | null;
+  if (status === 'ongoing') lastObserved = null;
+  else if (status === 'unknown') lastObserved = start.latest;
+  else if (status === 'last-verified') lastObserved = observed;
+  else lastObserved = endEarliest;
+
   return {
     startEarliest: start.earliest,
     startLatest: start.latest,
@@ -207,21 +264,64 @@ export function resolveInterval(
     startPrecision: start.precision,
     endPrecision,
     status,
+    lastObserved,
     ...(trimmed ? { trimmed: true } : {}),
     ...(startClamped ? { startClamped: true } : {}),
     raw: { start: rawStart, end: rawEnd }
   };
 }
 
-/** True when the interval is definitely active at t (inside the confident core). */
+/**
+ * Resolve an `ongoing` interval against its latest observation.
+ *
+ * Confirmed: the observation is within ONGOING_CONFIRMATION_DAYS of the cutoff,
+ * `ongoing` stands, and certainty runs through the observation.
+ *
+ * Otherwise the status is downgraded to `last-verified`: certainty stops at the
+ * observation (never before the start), and the envelope opens to the cutoff.
+ * The build warns when this happens; it is never silent.
+ */
+export function applyOngoingObservation(
+  iv: ResolvedInterval,
+  lastObservation: number | null
+): ResolvedInterval {
+  if (iv.status !== 'ongoing') return iv;
+  const cutoff = DATASET_CUTOFF;
+  const recent =
+    lastObservation !== null &&
+    lastObservation >= cutoff - ONGOING_CONFIRMATION_DAYS * 86_400_000;
+  if (recent) {
+    return { ...iv, lastObserved: Math.min(lastObservation, cutoff) };
+  }
+  const observed = Math.min(Math.max(iv.startLatest, lastObservation ?? iv.startLatest), cutoff);
+  return {
+    ...iv,
+    status: 'last-verified',
+    endEarliest: observed,
+    endLatest: cutoff,
+    endPrecision: iv.endPrecision === 'after' ? 'unknown' : iv.endPrecision,
+    lastObserved: observed
+  };
+}
+
+/** True when the interval is definitely active at `t` (inside the confident core). */
 export function certainlyActive(iv: ResolvedInterval, t: number): boolean {
+  // Nothing is asserted after the cutoff; certainty stops at the horizon.
+  if (t > DATASET_CUTOFF) return false;
   if (t < iv.startLatest) return false;
-  if (iv.endEarliest !== null && t > iv.endEarliest) return false;
+  const coreEnd =
+    iv.endEarliest !== null
+      ? iv.lastObserved !== null
+        ? Math.min(iv.endEarliest, iv.lastObserved)
+        : iv.endEarliest
+      : iv.lastObserved;
+  if (coreEnd !== null && t > coreEnd) return false;
   return true;
 }
 
-/** True when the interval may be active at t (inside the outer envelope). */
+/** True when the interval may be active at `t` (inside the outer envelope). */
 export function possiblyActive(iv: ResolvedInterval, t: number): boolean {
+  if (t > DATASET_CUTOFF) return false;
   if (t < iv.startEarliest) return false;
   if (iv.endLatest !== null && t > iv.endLatest) return false;
   return true;
@@ -241,4 +341,10 @@ export function getCutoff(): number {
 }
 export function getFloor(): number {
   return DATASET_FLOOR;
+}
+export function getBeforeWindowYears(): number {
+  return BEFORE_WINDOW_YEARS;
+}
+export function getApproxSlackDays(): { year: number; month: number } {
+  return { ...APPROX_SLACK_DAYS };
 }

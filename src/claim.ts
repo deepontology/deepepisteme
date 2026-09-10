@@ -17,9 +17,18 @@
  */
 
 import { z } from 'zod';
-import { getParameters } from './config.ts';
+import { getParameters } from './parameters.ts';
 
 const slug = z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'ids must be lowercase kebab-case');
+
+/**
+ * A mandatory text field is satisfied only by a string with real content.
+ * `z.string().min(1)` accepts a single space; a required field that whitespace
+ * satisfies is not required. Callers pass the field's existing minimum.
+ */
+export function nonBlank(v: unknown, min = 1): boolean {
+  return typeof v === 'string' && v.trim().length >= min;
+}
 
 export const Confidence = z.enum(['A', 'B', 'C', 'D']);
 export const Basis = z.enum(['documented', 'reported', 'inferred', 'unsubstantiated']);
@@ -27,11 +36,61 @@ export const Verification = z.enum(['verified', 'needs-primary-source', 'dispute
 export const TranslatedBy = z.enum(['machine', 'model-reviewed', 'machine-reviewed', 'human']);
 export const ReviewMethod = z.enum(['source-check', 'dedup', 'attribute', 'accept-reject', 'judge']);
 
+/**
+ * Claim records that must cite at least one source. Roles, questions, regions,
+ * eras and institutions are scaffolding: their standing is carried by the
+ * records inside them.
+ */
+export const REQUIRED_SOURCE_KINDS = new Set([
+  'institution',
+  'person',
+  'position',
+  'relationship',
+  'event',
+  'agreement',
+  'world-claim',
+  'company',
+  'contract',
+  'licence',
+  'declaration',
+  'education',
+  'place'
+]);
+
+const BASIS_STRENGTH: Record<z.infer<typeof Basis>, number> = {
+  unsubstantiated: 0,
+  inferred: 1,
+  reported: 2,
+  documented: 3
+};
+
+/** True when `authored` claims more epistemic standing than `derived`. */
+export function isBasisUpgrade(
+  authored: z.infer<typeof Basis>,
+  derived: z.infer<typeof Basis>
+): boolean {
+  return BASIS_STRENGTH[authored] > BASIS_STRENGTH[derived];
+}
+
+/** Explicit escapes configured before any record is parsed. */
+export interface SchemaExceptions {
+  /** `${kind}:${id}` whose empty `sources` list is a live escape. */
+  emptySources?: Set<string>;
+  /** `${kind}:${id}:${derived}>${authored}` basis overrides awaiting review. */
+  basisOverrides?: Set<string>;
+}
+
+let schemaExceptions: SchemaExceptions = {};
+
+export function configureClaimExceptions(exceptions: SchemaExceptions): void {
+  schemaExceptions = exceptions;
+}
+
 export type ConfidenceValue = z.infer<typeof Confidence>;
 export type BasisValue = z.infer<typeof Basis>;
 
-export const ReviewSchema = z.object({
-  by: z.string().min(2),
+export const ReviewSchema = z.strictObject({
+  by: z.string().refine((v) => nonBlank(v, 2), 'reviewer name must be at least 2 non-blank characters'),
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'review date must be ISO YYYY-MM-DD')
@@ -44,9 +103,13 @@ export const ReviewSchema = z.object({
   note: z.string().optional()
 });
 
-export const DisputeSchema = z.object({
-  claim: z.string().min(3),
-  held_by: z.string().min(2),
+export const DisputeSchema = z.strictObject({
+  claim: z
+    .string()
+    .refine((v) => nonBlank(v, 3), 'a dispute claim must be at least 3 non-blank characters'),
+  held_by: z
+    .string()
+    .refine((v) => nonBlank(v, 2), 'a dispute holder must be at least 2 non-blank characters'),
   source: slug.optional(),
   assessment: z.string().optional(),
   status: z.enum(['open', 'adopted', 'rejected']).optional(),
@@ -97,49 +160,81 @@ export function translatable(name: string, kind: 'string' | 'list' = 'string') {
 }
 
 /**
- * Shared claim envelope — nine fields, applied to every claim-bearing kind.
- * V18/V20 are enforced here so no future kind can forget them.
+ * Shared claim envelope — applied to every claim-bearing kind so no future
+ * kind can forget it.
+ *
+ *   * Mandatory prose is checked with `nonBlank`: whitespace is a missing field.
+ *   * A derived `inferred` claim needs reasoning and a falsifier; a derived
+ *     `unsubstantiated` claim needs attribution; grade C/D claims need
+ *     attribution.
+ *   * Required kinds must cite at least one source.
+ *   * An authored basis stronger than the grade implies is an override. It
+ *     requires a review, reasoning, a falsifier where an inference is involved,
+ *     a source and `basis_override_reason`; legacy overrides are enumerated as
+ *     live exceptions instead of being silently reverted.
  */
-const claimFields = {
-  confidence: Confidence.default('B'),
-  basis: Basis.optional(),
-  verification: Verification.default('verified'),
-  attributed_to: z.string().optional(),
-  reasoning: z.string().optional(),
-  falsifiable_by: z.string().optional(),
-  disputes: z.array(DisputeSchema).default([]),
-  review: ReviewSchema.optional(),
-  sources: z.array(slug).min(1, 'every claim record needs at least one source')
-};
-
-export function withClaimEnvelope<S extends z.ZodObject<z.ZodRawShape>>(schema: S) {
+export function withClaimEnvelope<S extends z.ZodObject<z.ZodRawShape>>(
+  kind: string,
+  schema: S
+) {
   return schema
-    .refine((r: any) => !((r.confidence === 'C' || r.confidence === 'D') && !r.attributed_to), {
-      message: 'grade C/D claims must name who is making the claim (attributed_to)'
-    })
     .refine(
-      (r: any) =>
-        !(
-          deriveBasis(r.confidence, r.verification, r.basis) === 'inferred' &&
-          (!r.reasoning || !r.falsifiable_by)
-        ),
-      { message: 'an inferred claim must state its reasoning and what would falsify it' }
+      (r: any) => !((r.confidence === 'C' || r.confidence === 'D') && !nonBlank(r.attributed_to)),
+      { message: 'grade C/D claims must name who is making the claim (attributed_to, non-blank)' }
+    )
+    .refine(
+      (r: any) => {
+        const derived = deriveBasis(r.confidence, r.verification, r.basis);
+        return !(derived === 'inferred' && (!nonBlank(r.reasoning) || !nonBlank(r.falsifiable_by)));
+      },
+      { message: 'an inferred claim must state its reasoning and what would falsify it (non-blank)' }
     )
     .refine(
       (r: any) =>
         !(
           deriveBasis(r.confidence, r.verification, r.basis) === 'unsubstantiated' &&
-          !r.attributed_to
+          !nonBlank(r.attributed_to)
         ),
-      { message: 'an unsubstantiated claim must name where the claim circulates' }
-    );
+      { message: 'an unsubstantiated claim must name where the claim circulates (non-blank)' }
+    )
+    .refine(
+      (r: any) => {
+        if (!REQUIRED_SOURCE_KINDS.has(kind)) return true;
+        if ((r.sources?.length ?? 0) > 0) return true;
+        return schemaExceptions.emptySources?.has(`${kind}:${r.id}`) ?? false;
+      },
+      {
+        message:
+          'rule 2: every claim record must cite at least one source, or be listed in the exception register with an owner and a deadline'
+      }
+    )
+    .superRefine((r: any, ctx) => {
+      if (!r.basis) return;
+      const derived = deriveBasis(r.confidence, r.verification, undefined);
+      if (!isBasisUpgrade(r.basis, derived)) return;
+      if (schemaExceptions.basisOverrides?.has(`${kind}:${r.id}:${derived}>${r.basis}`)) return;
+      const pair = `authored basis "${r.basis}" over grade-implied "${derived}"`;
+      const issue = (missing: string) =>
+        ctx.addIssue({ code: 'custom', message: `${pair}: ${missing}`, path: ['basis'] });
+      if (!r.review) issue('a basis override requires a review object with a date and method');
+      if (!nonBlank(r.reasoning)) issue('a basis override requires non-blank reasoning');
+      if ((r.basis === 'inferred' || derived === 'inferred') && !nonBlank(r.falsifiable_by)) {
+        issue('a basis override on an inference requires a non-blank falsifiable_by');
+      }
+      if ((r.sources?.length ?? 0) < 1) issue('a basis override requires at least one source');
+      if (!nonBlank(r.basis_override_reason, 10)) {
+        issue(
+          'a basis override requires basis_override_reason of at least 10 non-blank characters, or a live exception-register entry'
+        );
+      }
+    });
 }
 
 // ---------------------------------------------------------------------------
 // Re-exports used by build.ts: common schemas
 // ---------------------------------------------------------------------------
 
-export const SourceSchema = z.object({
+export const SourceSchema = z.strictObject({
   id: slug,
   title: z.string().min(3),
   publisher: z.string().min(2),
@@ -184,6 +279,7 @@ export const Layer = z.enum([
 ]);
 
 export const InstitutionSchema = withClaimEnvelope(
+  'institution',
   z.strictObject({
     id: slug,
     name_en: z.string().min(2),
@@ -196,7 +292,7 @@ export const InstitutionSchema = withClaimEnvelope(
     type: InstitutionType,
     layer: Layer,
     parent: slug.nullable().default(null),
-    active: z.object({ start: z.string().optional(), end: z.string().optional() }).default({}),
+    active: z.strictObject({ start: z.string().optional(), end: z.string().optional() }).default({}),
     order: z.number().int().default(100),
     summary: z.string().optional(),
     confidence: Confidence.default('A'),
@@ -205,6 +301,8 @@ export const InstitutionSchema = withClaimEnvelope(
     attributed_to: z.string().optional(),
     reasoning: z.string().optional(),
     falsifiable_by: z.string().optional(),
+    /** Why the authored basis overrides the grade-implied basis (V27). */
+    basis_override_reason: z.string().optional(),
     sources: z.array(slug).default([]),
     ...translatable('summary')
   })
@@ -224,6 +322,7 @@ export const RoleSchema = z.object({
 });
 
 export const PersonSchema = withClaimEnvelope(
+  'person',
   z.strictObject({
     id: slug,
     name_en: z.string().min(2),
@@ -244,6 +343,8 @@ export const PersonSchema = withClaimEnvelope(
     attributed_to: z.string().optional(),
     reasoning: z.string().optional(),
     falsifiable_by: z.string().optional(),
+    /** Why the authored basis overrides the grade-implied basis (V27). */
+    basis_override_reason: z.string().optional(),
     disputes: z.array(DisputeSchema).default([]),
     review: ReviewSchema.optional(),
     notes: z.array(z.string()).default([]),
@@ -267,6 +368,7 @@ const dateToken = z
 const intervalSpec = z.object({ start: dateToken.optional(), end: dateToken.optional() });
 
 export const PositionSchema = withClaimEnvelope(
+  'position',
   z.strictObject({
     id: slug,
     role: slug,
@@ -282,6 +384,8 @@ export const PositionSchema = withClaimEnvelope(
     attributed_to: z.string().optional(),
     reasoning: z.string().optional(),
     falsifiable_by: z.string().optional(),
+    /** Why the authored basis overrides the grade-implied basis (V27). */
+    basis_override_reason: z.string().optional(),
     disputes: z.array(DisputeSchema).default([]),
     merged_into: slug.optional(),
     review: ReviewSchema.optional(),
@@ -371,6 +475,7 @@ export const INFLUENCE_CHANNELS = [
 ] as const;
 
 export const RelationshipSchema = withClaimEnvelope(
+  'relationship',
   z.strictObject({
     id: slug,
     from: slug,
@@ -386,6 +491,8 @@ export const RelationshipSchema = withClaimEnvelope(
     attributed_to: z.string().optional(),
     reasoning: z.string().optional(),
     falsifiable_by: z.string().optional(),
+    /** Why the authored basis overrides the grade-implied basis (V27). */
+    basis_override_reason: z.string().optional(),
     disputes: z.array(DisputeSchema).default([]),
     merged_into: slug.optional(),
     supersedes: slug.optional(),
@@ -397,7 +504,7 @@ export const RelationshipSchema = withClaimEnvelope(
     notes: z.array(z.string()).default([]),
     ...translatable('notes', 'list'),
     equity: z
-      .object({
+      .strictObject({
         pct: z.number().min(0).max(100),
         direct: z.boolean().default(true),
         beneficial: z.boolean().default(false),
@@ -405,14 +512,14 @@ export const RelationshipSchema = withClaimEnvelope(
       })
       .optional(),
     finance: z
-      .object({
+      .strictObject({
         amount: z.number().nonnegative(),
         currency: z.string().regex(/^[A-Z]{3}$/),
         year: z.number().int().min(1900).max(2030)
       })
       .optional(),
     influence: z
-      .object({ channel: z.enum(INFLUENCE_CHANNELS), strength: z.number().min(0.3).max(1) })
+      .strictObject({ channel: z.enum(INFLUENCE_CHANNELS), strength: z.number().min(0.3).max(1) })
       .optional()
   })
 )
@@ -427,6 +534,7 @@ export const RelationshipSchema = withClaimEnvelope(
   });
 
 export const EventSchema = withClaimEnvelope(
+  'event',
   z.strictObject({
     id: slug,
     date: dateToken,
@@ -449,7 +557,7 @@ export const EventSchema = withClaimEnvelope(
     ]),
     subcategory: z.string().optional(),
     location: z.array(slug).default([]),
-    impact: z.object({ layer: z.array(Layer).default([]) }).optional(),
+    impact: z.strictObject({ layer: z.array(Layer).default([]) }).optional(),
     documents: z.array(z.string()).default([]),
     materials: z.array(z.string()).default([]),
     causes: z.array(slug).default([]),
@@ -464,7 +572,11 @@ export const EventSchema = withClaimEnvelope(
     attributed_to: z.string().optional(),
     reasoning: z.string().optional(),
     falsifiable_by: z.string().optional(),
-    contested: z.array(z.object({ framing: z.string(), held_by: z.string(), source: slug.optional() })).default([]),
+    /** Why the authored basis overrides the grade-implied basis (V27). */
+    basis_override_reason: z.string().optional(),
+    contested: z.array(
+      z.strictObject({ framing: z.string(), held_by: z.string(), source: slug.optional() })
+    ).default([]),
     disputes: z.array(DisputeSchema).default([]),
     review: ReviewSchema.optional(),
     sources: z.array(slug).min(1, 'every event needs at least one source'),
