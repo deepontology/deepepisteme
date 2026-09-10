@@ -12,8 +12,8 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyEdit } from './emit.ts';
 import { buildMatcher } from './match.ts';
-import { resolveInterval, certainlyActive, possiblyActive } from './time.ts';
-import { deriveBasis } from './claim.ts';
+import { applyOngoingObservation, resolveInterval, certainlyActive, possiblyActive, getCutoff, getFloor } from './time.ts';
+import { deriveBasis, configureClaimExceptions, PositionSchema, ReviewSchema } from './claim.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -80,6 +80,46 @@ assert('B → reported', deriveBasis('B', 'verified') === 'reported');
 assert('explicit basis overrides', deriveBasis('A', 'verified', 'reported') === 'reported');
 
 // ---------------------------------------------------------------------------
+// 3b. Claim envelope — whitespace, override provenance, strict review
+// ---------------------------------------------------------------------------
+
+{
+  const base = {
+    id: 'p-fixture',
+    role: 'r-fixture',
+    holder: 'h-fixture',
+    start: '2020-01-01',
+    confidence: 'C',
+    verification: 'needs-primary-source',
+    sources: ['s-fixture']
+  };
+  assert(
+    'whitespace attribution is rejected',
+    !PositionSchema.safeParse({ ...base, attributed_to: ' ', reasoning: 'Reasoned.', falsifiable_by: 'A falsifier.' }).success
+  );
+  assert(
+    'whitespace reasoning is rejected',
+    !PositionSchema.safeParse({ ...base, attributed_to: 'Some Observer', reasoning: ' ', falsifiable_by: 'A falsifier.' }).success
+  );
+  const override = {
+    ...base,
+    attributed_to: 'Some Observer',
+    reasoning: 'Reasoned.',
+    falsifiable_by: 'A falsifier.',
+    basis: 'documented'
+  };
+  assert('override without review is rejected', !PositionSchema.safeParse(override).success);
+  assert(
+    'unknown review key is rejected',
+    !ReviewSchema.safeParse({ by: 'x', date: '2026-01-01', method: 'source-check', outcome: 'refuted' }).success
+  );
+  configureClaimExceptions({ basisOverrides: new Set(['position:p-fixture:inferred>documented']) });
+  assert('registered override parses while its entry is live', PositionSchema.safeParse(override).success);
+  configureClaimExceptions({});
+  assert('de-registered override fails again', !PositionSchema.safeParse(override).success);
+}
+
+// ---------------------------------------------------------------------------
 // 4. Time — interval resolver and predicates
 // ---------------------------------------------------------------------------
 
@@ -94,8 +134,79 @@ assert('explicit basis overrides', deriveBasis('A', 'verified', 'reported') === 
   assert('ongoing has null end', ongoing.endEarliest === null && ongoing.endLatest === null);
   const verified = resolveInterval({ start: '2020-01-01', end: 'verified:2024-06' });
   assert('verified interval last-verified', verified.status === 'last-verified');
+  assert('verified day observation is the certainty horizon', verified.lastObserved !== null);
   const bw = resolveInterval({ start: '<=2020-06', end: '2020-06-15' });
   assert('<= clamps to window (before)', bw.startPrecision === 'before');
+
+  // The review's probe: an unknown end never yields certainty past its one
+  // observation (the start), and never yields certain without possible.
+  const unknown = resolveInterval({ start: '2020-01-01', end: '?' });
+  const pastCutoff = getCutoff() + 86_400_000;
+  assert('unknown end: not certain at cutoff plus one day', !certainlyActive(unknown, pastCutoff));
+  assert('unknown end: not certain without possible', !certainlyActive(unknown, pastCutoff) || possiblyActive(unknown, pastCutoff));
+
+  // Month-only observation: certainty at the midpoint, possibility through the
+  // month end (and no further than the cutoff).
+  const monthVerified = resolveInterval({ start: '2019-01-01', end: 'verified:2020-06' });
+  const monthMid = Math.floor((Date.UTC(2020, 5, 1) + Date.UTC(2020, 5, 30, 23, 59, 59)) / 2);
+  assert('month observation is certain at the midpoint', certainlyActive(monthVerified, monthMid));
+  assert('month observation is not certain on the last day', !certainlyActive(monthVerified, Date.UTC(2020, 5, 30, 23, 59, 59)));
+
+  // Ongoing confirmation: a recent observation keeps the status; an old one
+  // downgrades it and stops certainty at the observation.
+  const confirmed = applyOngoingObservation(resolveInterval({ start: '2022-01-01', end: 'ongoing' }), getCutoff() - 10 * 86_400_000);
+  assert('ongoing with a recent observation stays ongoing', confirmed.status === 'ongoing');
+  assert('ongoing certainty stops at the observation', !certainlyActive(confirmed, getCutoff()));
+  const stale = applyOngoingObservation(resolveInterval({ start: '2022-01-01', end: 'ongoing' }), Date.UTC(2024, 0, 1));
+  assert('ongoing with a stale observation downgrades to last-verified', stale.status === 'last-verified');
+  assert('downgraded certainty stops at the stale observation', certainlyActive(stale, Date.UTC(2024, 0, 1)) && !certainlyActive(stale, Date.UTC(2025, 0, 1)));
+
+  // Generated property sweep: token combinations x boundary dates. The
+  // invariant and the envelope rules must hold for every case.
+  const starts = ['2018-06-01', '2018-06', '2018', '~2017', '~2017-06', '<=2018-06', '>=1984', '?'];
+  const ends = ['2020-06-01', '2020-06', '2020', '~2020', 'ongoing', 'verified:2020-06', 'verified:2020-06-15', '?'];
+  const boundary = (t: number) => [
+    t - 86_400_000,
+    t,
+    t + 86_400_000
+  ];
+  const queries = new Set<number>([
+    ...boundary(getFloor()),
+    ...boundary(getCutoff()),
+    Date.UTC(2020, 1, 29),
+    Date.UTC(2024, 1, 29),
+    Date.UTC(2017, 0, 1),
+    Date.UTC(2018, 5, 15),
+    Date.UTC(2020, 5, 15),
+    Date.UTC(2021, 5, 15)
+  ]);
+  let seed = 20260910;
+  const rand = () => {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  };
+  const pool = [...starts.flatMap((s) => ends.map((e) => [s, e] as const))];
+  const sweepFailures: string[] = [];
+  const check = (cond: boolean, msg: string) => {
+    if (!cond && sweepFailures.length < 5) sweepFailures.push(msg);
+  };
+  for (let i = 0; i < 1000; i++) {
+    const [s, e] = pool[i < pool.length ? i : Math.floor(rand() * pool.length)];
+    let iv;
+    try {
+      iv = resolveInterval({ start: s, end: e });
+    } catch {
+      continue;
+    }
+    check(iv.startEarliest <= iv.startLatest, `ordering ${s}/${e}`);
+    check(iv.endEarliest === null || iv.endLatest === null || iv.endEarliest <= iv.endLatest, `end ordering ${s}/${e}`);
+    for (const t of queries) {
+      check(!certainlyActive(iv, t) || possiblyActive(iv, t), `certain without possible ${s}/${e} @ ${new Date(t).toISOString()}`);
+      check(!certainlyActive(iv, getCutoff() + 1) && !possiblyActive(iv, getCutoff() + 1), `assertion past cutoff ${s}/${e}`);
+    }
+  }
+  assert('generated sweep: envelope ordering holds', sweepFailures.length === 0, sweepFailures[0] ?? '');
+  assert('generated sweep: certain implies possible and nothing past cutoff', sweepFailures.length === 0, sweepFailures[0] ?? '');
 }
 
 // ---------------------------------------------------------------------------

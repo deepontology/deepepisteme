@@ -16,7 +16,7 @@ import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 
 import { loadParameters, getParameters } from './config.ts';
-import { configureTime, resolveInterval, durationYears } from './time.ts';
+import { applyOngoingObservation, configureTime, resolveInterval, durationYears } from './time.ts';
 import {
   SourceSchema,
   InstitutionSchema,
@@ -145,8 +145,36 @@ function safeInterval(where: string, spec: { start?: string | null; end?: string
   catch (e) { fail(where, (e as Error).message); return resolveInterval({}, { allowEnvelopeTrim: allowTrim }); }
 }
 
+/** Latest publication date among a record's sources — the ongoing observation. */
+function latestObservation(ids: string[]): number | null {
+  let max: number | null = null;
+  for (const id of ids) {
+    const date = sourceById.get(id)?.date;
+    if (!date) continue;
+    const t = Date.parse(date);
+    if (!Number.isNaN(t) && (max === null || t > max)) max = t;
+  }
+  return max;
+}
+
+/**
+ * Resolve an interval and settle `ongoing` against its observation. An ongoing
+ * claim with no observation within ONGOING_CONFIRMATION_DAYS of the cutoff is
+ * downgraded to `last-verified` with a warning; certainty stops at the
+ * observation instead of running unbounded to the cutoff.
+ */
+function resolvedInterval(where: string, record: { sources?: string[] }, spec: { start?: string | null; end?: string | null }, allowTrim = false) {
+  const raw = safeInterval(where, spec, allowTrim);
+  if (raw.status !== 'ongoing') return raw;
+  const settled = applyOngoingObservation(raw, latestObservation(record.sources ?? []));
+  if (settled.status !== 'ongoing') {
+    warn(where, 'ongoing without a source dated within 90 days of the cutoff — downgraded to last-verified');
+  }
+  return settled;
+}
+
 const resolvedPositions = positions.map((pos) => {
-  const interval = safeInterval(`position ${pos.id}`, { start: (pos as any).start, end: (pos as any).end }, (pos.disputes?.length ?? 0) > 0);
+  const interval = resolvedInterval(`position ${pos.id}`, pos as any, { start: (pos as any).start, end: (pos as any).end }, (pos.disputes?.length ?? 0) > 0);
   const basis = deriveBasis((pos as any).confidence, (pos as any).verification, (pos as any).basis);
   if (basis === 'inferred' && !(pos as any).reasoning) fail(`position ${pos.id}`, 'inferred claim with no reasoning');
   if (basis === 'inferred' && !(pos as any).falsifiable_by) fail(`position ${pos.id}`, 'inferred claim with no falsifier');
@@ -157,13 +185,13 @@ const resolvedPositions = positions.map((pos) => {
 const resolvedRelationships = relationships.map((rel: any) => ({
   ...rel,
   basis: deriveBasis(rel.confidence, rel.verification, rel.basis),
-  interval: safeInterval(`relationship ${rel.from}->${rel.to}`, { start: rel.start, end: rel.end }, (rel.disputes?.length ?? 0) > 0)
+  interval: resolvedInterval(`relationship ${rel.from}->${rel.to}`, rel, { start: rel.start, end: rel.end }, (rel.disputes?.length ?? 0) > 0)
 }));
 
 const resolvedEvents = events.map((ev: any) => ({
   ...ev,
   basis: deriveBasis(ev.confidence, ev.verification, ev.basis),
-  interval: safeInterval(`event ${ev.id}`, { start: ev.date, end: ev.date_end ?? ev.date }, (ev.disputes?.length ?? 0) > 0)
+  interval: resolvedInterval(`event ${ev.id}`, ev, { start: ev.date, end: ev.date_end ?? ev.date }, (ev.disputes?.length ?? 0) > 0)
 }));
 
 // ---------------------------------------------------------------------------
