@@ -1,5 +1,5 @@
 /**
- * kernel/translation.ts — the translation ladder.
+ * kernel/translation.ts: the translation ladder.
  *
  * Prose in a second language has a provenance: machine, model-reviewed,
  * machine-reviewed, human. The ladder is kernel; which languages a deployment

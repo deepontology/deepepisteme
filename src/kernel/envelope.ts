@@ -1,5 +1,5 @@
 /**
- * kernel/envelope.ts — the evidence envelope every claim-bearing kind carries.
+ * kernel/envelope.ts: the evidence envelope every claim-bearing kind carries.
  *
  *   * Mandatory prose is checked with nonBlank: whitespace is a missing field.
  *   * A derived `inferred` claim needs reasoning and a falsifier; a derived

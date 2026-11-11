@@ -1,5 +1,5 @@
 /**
- * kernel/exceptions.ts — the dated escape register.
+ * kernel/exceptions.ts: the dated escape register.
  *
  * A rule may be broken on purpose, by name and until a date. Two shapes:
  *

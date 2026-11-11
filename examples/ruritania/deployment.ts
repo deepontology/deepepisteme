@@ -1,5 +1,5 @@
 /**
- * examples/ruritania/deployment.ts — one country, written as data.
+ * examples/ruritania/deployment.ts: one country, written as data.
  *
  * Ruritania is the invented jurisdiction the example data ships with. It is a
  * whole deployment: the values the engine used to hold in parameters.yaml and

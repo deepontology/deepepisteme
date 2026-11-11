@@ -1,5 +1,5 @@
 /**
- * index.ts — public entry point.
+ * index.ts: public entry point.
  *
  * 1.0 entry: `createEngine(deployment)` (src/engine.ts) returns a time model
  * and the claim envelope, wired to one deployment. `createTime(parameters)` is

@@ -1,5 +1,5 @@
 /**
- * legacy.ts — the one default engine the v0.1 modules delegate to.
+ * legacy.ts: the one default engine the v0.1 modules delegate to.
  *
  * The v0.1 modules (time.ts, claim.ts, validate.ts) are still imported by
  * build.ts and test.ts during slice 0. They read this engine instead of

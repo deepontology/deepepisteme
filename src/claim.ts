@@ -1,5 +1,5 @@
 /**
- * claim.ts — the v0.1 evidence module, now a view of one engine.
+ * claim.ts: the v0.1 evidence module, now a view of one engine.
  *
  * The envelope itself (grades, basis, reviews, disputes, the exception sets)
  * and the power-map vocabulary live in kernel/ and atlas/. This module keeps

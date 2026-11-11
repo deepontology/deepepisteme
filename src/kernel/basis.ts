@@ -1,5 +1,5 @@
 /**
- * kernel/basis.ts — the grade ladder and how a basis is derived from it.
+ * kernel/basis.ts: the grade ladder and how a basis is derived from it.
  *
  * Basis answers "what KIND of claim is this?", not "how strong is it?".
  * A reasoned inference and a thinly-sourced report are both weak, but weak in

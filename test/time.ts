@@ -1,5 +1,5 @@
 /**
- * test/time.ts — the interval resolver on a createTime() object.
+ * test/time.ts: the interval resolver on a createTime() object.
  *
  * Ported from the v0.1 gate (src/test.ts section 4), unchanged in intent:
  * the same intervals, the same invariants, the same generated sweep. The only
@@ -19,7 +19,7 @@ function assert(name: string, cond: boolean, detail = '') {
     console.log(`  ✓ ${name}`);
   } else {
     failures++;
-    console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`);
+    console.error(`  ✗ ${name}${detail ? `: ${detail}` : ''}`);
   }
 }
 

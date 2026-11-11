@@ -1,5 +1,5 @@
 /**
- * kernel/time.ts — fuzzy interval resolver and predicates, self-contained.
+ * kernel/time.ts: fuzzy interval resolver and predicates, self-contained.
  *
  * Historical dates are rarely precise. A source may say "appointed 1 June 2018",
  * or "in post by at least December 2025", or "around 2017". Every date edge

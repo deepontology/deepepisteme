@@ -1,5 +1,5 @@
 /**
- * engine.ts — the one entry point: createEngine(deployment).
+ * engine.ts: the one entry point: createEngine(deployment).
  *
  * An engine holds its whole configuration. Two engines in one process do not
  * see each other, because nothing here is module state: the deployment arrives

@@ -1,5 +1,5 @@
 /**
- * kernel/review.ts — how a claims record is reviewed, and how it is disputed.
+ * kernel/review.ts: how a claims record is reviewed, and how it is disputed.
  *
  * A review is signed work: a person or a named pass, a date, a method. Strict
  * objects, because a review that carries an unknown key was written against a

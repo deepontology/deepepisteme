@@ -1,5 +1,5 @@
 /**
- * test/two-engines.ts — two engines in one process do not see each other.
+ * test/two-engines.ts: two engines in one process do not see each other.
  *
  * This is the property v0.1 could not have: its cutoff and floor were module
  * variables, so the last configureTime call decided every answer. Here each
@@ -19,7 +19,7 @@ function assert(name: string, cond: boolean, detail = '') {
     console.log(`  ✓ ${name}`);
   } else {
     failures++;
-    console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`);
+    console.error(`  ✗ ${name}${detail ? `: ${detail}` : ''}`);
   }
 }
 

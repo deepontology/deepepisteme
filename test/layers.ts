@@ -1,5 +1,5 @@
 /**
- * test/layers.ts — the layer and state rules, as a gate.
+ * test/layers.ts: the layer and state rules, as a gate.
  *
  * Three rules, each checked on the files themselves:
  *   1. No module-level `let` or `var` under src/kernel or in src/engine.ts.

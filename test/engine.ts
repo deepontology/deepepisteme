@@ -1,5 +1,5 @@
 /**
- * test/engine.ts — createEngine: validation, this slice's parts, and the
+ * test/engine.ts: createEngine: validation, this slice's parts, and the
  * default engine the v0.1 modules delegate to.
  *
  * The envelope checks here are the point of the slice: the exception sets are
@@ -21,7 +21,7 @@ function assert(name: string, cond: boolean, detail = '') {
     console.log(`  ✓ ${name}`);
   } else {
     failures++;
-    console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ''}`);
+    console.error(`  ✗ ${name}${detail ? `: ${detail}` : ''}`);
   }
 }
 

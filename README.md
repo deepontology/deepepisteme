@@ -19,7 +19,7 @@ compile time, rather than at reading time.
 
 | Module | What it does |
 |---|---|
-| `src/engine.ts` | `createEngine(deployment)` — the 1.0 entry point: validates a deployment and returns its time model and envelope helpers |
+| `src/engine.ts` | `createEngine(deployment)`, the 1.0 entry point: validates a deployment and returns its time model and envelope helpers |
 | `src/kernel/` | The layers true of any evidence-graded corpus: `kernel/time.ts` (`createTime`, the interval resolver), the basis ladder, reviews and disputes, the claim envelope. No country, no module state |
 | `src/claim.ts` | Record schemas built on the evidence envelope; the envelope itself now lives in `src/kernel/` and is re-exported here |
 | `src/time.ts` | v0.1 path to the interval resolver: `src/kernel/time.ts` holds `createTime(parameters)`; this module delegates to one Time object |

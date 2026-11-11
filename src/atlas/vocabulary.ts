@@ -1,5 +1,5 @@
 /**
- * atlas/vocabulary.ts — the default vocabulary of a map of power.
+ * atlas/vocabulary.ts: the default vocabulary of a map of power.
  *
  * These lists are the starting point a deployment extends or trims: layers,
  * institution types, relationship types and their direction, influence

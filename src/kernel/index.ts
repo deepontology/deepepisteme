@@ -1,5 +1,5 @@
 /**
- * kernel/index.ts — the kernel layer: true of any ledger of contested claims.
+ * kernel/index.ts: the kernel layer: true of any ledger of contested claims.
  *
  * Nothing here knows a country, and nothing here reads module state.
  */

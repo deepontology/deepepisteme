@@ -1,5 +1,5 @@
 /**
- * time.ts — the v0.1 time module, now a thin view of one Time object.
+ * time.ts: the v0.1 time module, now a thin view of one Time object.
  *
  * The resolver lives in kernel/time.ts and holds its configuration in a
  * closure. This module keeps the old import path working by holding one Time
