@@ -18,7 +18,6 @@ import { z } from 'zod';
 import { loadParameters, getParameters } from './config.ts';
 import { applyOngoingObservation, configureTime, resolveInterval, durationYears } from './time.ts';
 import {
-  SourceSchema,
   InstitutionSchema,
   RoleSchema,
   PersonSchema,
@@ -28,11 +27,14 @@ import {
   EraSchema,
   deriveBasis
 } from './claim.ts';
+import { legacyEngine } from './legacy.ts';
+import type { SourceRecord } from './kernel/kinds.ts';
 import { runValidators } from './validate.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
 const DATA_DIR = process.env.DT_DATA_DIR ?? join(ROOT, 'data');
+const EXAMPLE_DATA_DIR = join(ROOT, 'examples', 'ruritania', 'data');
 const OUT_DIR = join(ROOT, 'src', 'generated');
 const STATIC_DIR = join(ROOT, 'static');
 
@@ -81,7 +83,48 @@ function loadYaml<T>(file: string, schema: z.ZodType<T>): T[] {
   return out;
 }
 
-const sources = loadYaml('sources.yaml', SourceSchema);
+/**
+ * Read a kind's YAML list without a schema. The engine's parse() is what types
+ * these kinds, so one loader does not hold two copies of the same shape.
+ * A missing required file fails; a missing optional one is zero records.
+ */
+function readYamlList(file: string, base: string, required = false): unknown[] {
+  const path = join(base, file);
+  if (!existsSync(path)) {
+    if (required) fail(file, 'file not found');
+    return [];
+  }
+  let raw: unknown;
+  try {
+    raw = parseYaml(readFileSync(path, 'utf8'));
+  } catch (e) {
+    fail(file, `YAML parse: ${(e as Error).message}`);
+    return [];
+  }
+  if (raw === null || raw === undefined) return [];
+  if (!Array.isArray(raw)) {
+    fail(file, 'expected top-level YAML list');
+    return [];
+  }
+  return raw;
+}
+
+// The kinds the engine owns in this slice: its schemas, its envelope, its
+// findings. The source register stays in data/ because the whole build reads
+// it; the other three are the deployment's own example data.
+const parsedKinds = legacyEngine.parse({
+  source: readYamlList('sources.yaml', DATA_DIR, true),
+  question: readYamlList('questions.yaml', EXAMPLE_DATA_DIR),
+  hypothesis: readYamlList('hypotheses.yaml', EXAMPLE_DATA_DIR),
+  verification: readYamlList('verifications.yaml', EXAMPLE_DATA_DIR)
+});
+for (const finding of parsedKinds.findings) fail(finding.rule, finding.message);
+
+const sources = parsedKinds.records.source as unknown as SourceRecord[];
+const questions = parsedKinds.records.question;
+const hypotheses = parsedKinds.records.hypothesis;
+const verifications = parsedKinds.records.verification;
+
 const institutions = loadYaml('institutions.yaml', InstitutionSchema);
 const roles = loadYaml('roles.yaml', RoleSchema);
 const people = loadYaml('people.yaml', PersonSchema);
@@ -259,7 +302,10 @@ const dataset = {
       positions: positions.length,
       relationships: relationships.length,
       events: events.length,
-      eras: eras.length
+      eras: eras.length,
+      questions: questions.length,
+      hypotheses: hypotheses.length,
+      verifications: verifications.length
     }
   },
   sources,
@@ -269,7 +315,10 @@ const dataset = {
   positions: resolvedPositions,
   relationships: resolvedRelationships,
   events: resolvedEvents,
-  eras
+  eras,
+  questions,
+  hypotheses,
+  verifications
 };
 
 mkdirSync(OUT_DIR, { recursive: true });
