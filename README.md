@@ -19,8 +19,8 @@ compile time, rather than at reading time.
 
 | Module | What it does |
 |---|---|
-| `src/engine.ts` | `createEngine(deployment)`, the 1.0 entry point: validates a deployment and returns its time model, envelope helpers, canonical projection and splicer |
-| `src/kernel/` | The layers true of any evidence-graded corpus: `kernel/time.ts` (`createTime`, the interval resolver), the basis ladder, reviews and disputes, the claim envelope, `kernel/canonical.ts` (the stable projection and the dataset hash), `kernel/splicer.ts` (the single-region YAML splicer). No country, no module state |
+| `src/engine.ts` | `createEngine(deployment)`, the 1.0 entry point: validates a deployment and returns its time model, envelope helpers, the kind register, the rule register, `parse()`, the canonical projection and splicer |
+| `src/kernel/` | The layers true of any evidence-graded corpus: `kernel/time.ts` (`createTime`, the interval resolver), the basis ladder, reviews and disputes, the claim envelope, the exception register, `kernel/kinds.ts` (the source, question, hypothesis and verification kinds), `kernel/rules.ts` (findings and rules V12, V25, V27), `kernel/canonical.ts` (the stable projection and the dataset hash), `kernel/splicer.ts` (the single-region YAML splicer). No country, no module state |
 | `src/claim.ts` | Record schemas built on the evidence envelope; the envelope itself now lives in `src/kernel/` and is re-exported here |
 | `src/time.ts` | v0.1 path to the interval resolver: `src/kernel/time.ts` holds `createTime(parameters)`; this module delegates to one Time object |
 | `src/config.ts` | `ParametersSchema` — **the fork point**. One YAML file retargets the whole engine |
@@ -41,6 +41,9 @@ exercises every layer of the engine:
 * 5 roles, 6 people (including one **inferred** person + position that require `reasoning`/`falsifiable_by`)
 * 6 positions, 4 relationships (including one **reported-influence** edge moored via V9)
 * 2 events, 2 eras
+* 2 questions, 2 hypotheses (one with an evidence finding) and 2 independent
+  verifications, in `examples/ruritania/data/`, parsed by the engine's own
+  kinds
 
 It exists to prove portability: the example compiles from its own data
 directory, with its own parameters, through the same validators Tunisia uses.
@@ -50,7 +53,7 @@ directory, with its own parameters, through the same validators Tunisia uses.
 ```bash
 npm ci
 npm run data   # build src/generated/dataset.json + static/dataset.json
-npm run test   # gate: layers, canonical hash, splicer, two engines, intervals, counts, envelope, matcher
+npm run test   # gate: layers, kinds, rules, canonical hash, splicer, two engines, intervals, counts, envelope, matcher
 npm run check  # tsc --noEmit
 ```
 
@@ -75,11 +78,11 @@ gate.
 
 DeepTunisia's repository is untouched. This crate was extracted from:
 
-* `scripts/schema.ts` → `src/claim.ts`
+* `scripts/schema.ts` → `src/claim.ts` (the v0.1 schemas) and `src/kernel/kinds.ts` (the source, question, hypothesis and verification kinds)
 * `scripts/dates.ts` → `src/time.ts`
 * `scripts/parameters.ts` → `src/config.ts`
 * `scripts/canonical.ts` → `src/kernel/canonical.ts`
-* `scripts/build-data.ts` (validator passes) → `src/validate.ts`
+* `scripts/build-data.ts` (validator passes) → `src/validate.ts`, and its source and grade-A checks (V12, V25, V27) → `src/kernel/rules.ts`
 * `scripts/emit.ts` → `src/kernel/splicer.ts` (the 1.0 splicer, single-region guarantee included); `src/emit.ts` keeps the v0.1 path until slice 3
 * `src/lib/match.ts` → `src/match.ts`
 
@@ -89,9 +92,10 @@ changes configuration — not validators.
 
 ## Status
 
-Skeleton — extraction begun, not complete. The crate demonstrates that the
-engine is separable and portable; the full DeepTunisia validator suite (V1–V24),
-media/world layers, and CI portability proof are tracked as later milestones.
+Extraction begun, not complete. The crate demonstrates that the engine is
+separable and portable. Three validators (V12, V25, V27) have moved; the rest
+of the DeepTunisia suite, the media and world layers, and a CI portability
+proof are later milestones.
 
 See the DeepTunisia repository for the
 milestone map. This directory is a sibling to that repository, not a subdirectory,

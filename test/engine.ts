@@ -42,12 +42,12 @@ assert('engine carries its time model', engine.time.cutoff === Date.UTC(2026, 5,
 assert('engine is frozen', Object.isFrozen(engine));
 
 // The parts it does not build yet name their slice.
-assert('parse names slice 2', throwsWith(() => engine.parse({}, { sourceExceptions: new Map(), basisOverrides: new Map() }), 'slice 2'));
+assert('parse is built', engine.parse({}, undefined).findings.length === 0);
 assert('resolve names slice 4', throwsWith(() => engine.resolve({}), 'slice 4'));
 assert('validate names slice 4', throwsWith(() => engine.validate({ records: {}, intervals: new Map(), basis: new Map(), index: new Map() }), 'slice 4'));
-assert('check names slice 2 through parse', throwsWith(() => engine.check({}, { sourceExceptions: new Map(), basisOverrides: new Map() }), 'slice 2'));
-assert('kinds names slice 3', throwsWith(() => engine.kinds, 'slice 3'));
-assert('rules names slice 4', throwsWith(() => engine.rules, 'slice 4'));
+assert('check names slice 4 after a clean parse', throwsWith(() => engine.check({}, undefined), 'slice 4'));
+assert('kinds is built', engine.kinds.size === 4);
+assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27');
 assert('splicer is built', typeof engine.splicer.applyEdit === 'function');
 assert('canonical is built', typeof engine.canonical.hash === 'function');
 assert('buildMatcher names slice 5', throwsWith(() => engine.buildMatcher([]), 'slice 5'));
@@ -117,6 +117,45 @@ assert('buildMatcher names slice 5', throwsWith(() => engine.buildMatcher([]), '
   assert(
     'a one-character name is refused',
     throwsWith(() => createEngine({ ...ruritania, name: 'R' }), 'at least 2 non-blank characters')
+  );
+  assert(
+    'a deployment may not shadow a kernel kind',
+    throwsWith(
+      () =>
+        createEngine({
+          ...ruritania,
+          extraKinds: [
+            { kind: 'source', file: 'sources.yaml', schema: z.strictObject({ id: z.string() }), bearsClaims: false, layer: 'deployment' }
+          ]
+        }),
+      'which is a kernel kind'
+    )
+  );
+  assert(
+    'a claim kind must be a plain object schema',
+    throwsWith(
+      () =>
+        createEngine({
+          ...ruritania,
+          extraKinds: [
+            {
+              kind: 'position',
+              file: 'positions.yaml',
+              schema: z.array(z.strictObject({ id: z.string() })),
+              bearsClaims: true,
+              layer: 'deployment'
+            }
+          ]
+        }),
+      'needs an object schema'
+    )
+  );
+  assert(
+    'the source languages must include the source default',
+    throwsWith(
+      () => createEngine({ ...ruritania, sourceLanguages: ['ar', 'fr'] }),
+      'must include "en"'
+    )
   );
   assert('the example deployment itself is accepted', !!createEngine(ruritania).time);
 }
