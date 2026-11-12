@@ -6,7 +6,7 @@
   "scripts": {
     "data": "tsx src/build.ts",
     "build": "tsx src/build.ts",
-    "test": "tsx test/layers.ts && tsx test/two-engines.ts && tsx test/time.ts && tsx test/engine.ts && tsx src/test.ts",
+    "test": "tsx test/layers.ts && tsx test/canonical.ts && tsx test/two-engines.ts && tsx test/time.ts && tsx test/engine.ts && tsx src/test.ts",
     "check": "tsc --noEmit"
   },
   "dependencies": {

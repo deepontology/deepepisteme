@@ -49,7 +49,7 @@ assert('check names slice 2 through parse', throwsWith(() => engine.check({}, { 
 assert('kinds names slice 3', throwsWith(() => engine.kinds, 'slice 3'));
 assert('rules names slice 4', throwsWith(() => engine.rules, 'slice 4'));
 assert('splicer names slice 1', throwsWith(() => engine.splicer, 'slice 1'));
-assert('canonical names slice 1', throwsWith(() => engine.canonical, 'slice 1'));
+assert('canonical is built', typeof engine.canonical.hash === 'function');
 assert('buildMatcher names slice 5', throwsWith(() => engine.buildMatcher([]), 'slice 5'));
 
 // Deployment validation: a malformed deployment is a programming error.

@@ -5,9 +5,10 @@
  * see each other, because nothing here is module state: the deployment arrives
  * as an argument and everything below closes over it.
  *
- * Slice 0 builds the pieces this slice moves: the time model and the claim
- * envelope. The rest of the interface is present and throws, so a caller meets
- * a named wall, not an undefined function.
+ * Slice 0 builds the pieces it moves: the time model and the claim envelope.
+ * Slice 1 adds the canonical projection and the splicer. The rest of the
+ * interface is present and throws, so a caller meets a named wall, not an
+ * undefined function.
  */
 
 import type { z } from 'zod';
@@ -41,6 +42,7 @@ import {
   type GazetteVocabulary
 } from './kernel/review.ts';
 import type { EnvelopeExceptions, ExceptionRegister } from './kernel/exceptions.ts';
+import { hash as canonicalHash, project as canonicalProject, type CanonicalOptions } from './kernel/canonical.ts';
 
 export type { ResolvedInterval, Time, TimeParameters };
 export type { BasisValue, ConfidenceValue, VerificationValue };
@@ -71,17 +73,26 @@ export interface Rule<Ctx = unknown> {
   run(ctx: Ctx): Finding[];
 }
 
-/** Splicer. Moves upstream from deeptunisia scripts/emit.ts. */
+/**
+ * Splicer. Moves upstream from deeptunisia scripts/emit.ts: seven edit
+ * operations and the self-check that the rest of the file did not move. The
+ * target travels inside the edit, so a call is `applyEdit(text, edit)`.
+ */
 export interface Splicer {
-  applyEdit(fileText: string, target: unknown, edit: unknown): { text: string; splice: unknown };
-  assertOnlyTargetChanged(before: string, after: string, target: unknown): void;
+  applyEdit(fileText: string, edit: unknown): { text: string; splice: unknown };
+  assertOnlyTargetChanged(before: string, after: string, targetId: string | null): void;
 }
 
-/** Canonical bytes and the dataset hash. Moves upstream from scripts/canonical.ts. */
+/**
+ * Canonical bytes and the dataset hash. Moves upstream from scripts/canonical.ts.
+ * `drop` names the fields a deployment emits but the hash must ignore, so the
+ * one hash is reachable without a branch in the kernel.
+ */
 export interface Canonical {
-  project(dataset: unknown, opts?: { drop?: string[] }): unknown;
-  hash(dataset: unknown): string;
+  project(dataset: unknown, opts?: CanonicalOptions): unknown;
+  hash(dataset: unknown, opts?: CanonicalOptions): string;
 }
+export type { CanonicalOptions };
 
 /** Records as loaded from YAML, keyed by kind. parse() is what types them. */
 export type RawDataset = Readonly<Record<string, readonly unknown[]>>;
@@ -320,6 +331,11 @@ export function createEngine(deployment: Deployment): Engine {
     return notBuilt('validate', 4);
   }
 
+  const canonical: Canonical = Object.freeze({
+    project: (dataset: unknown, opts?: CanonicalOptions) => canonicalProject(dataset, opts),
+    hash: (dataset: unknown, opts?: CanonicalOptions) => canonicalHash(dataset, opts)
+  });
+
   const engine: Engine = {
     deployment,
     time,
@@ -333,9 +349,7 @@ export function createEngine(deployment: Deployment): Engine {
     get splicer(): Splicer {
       return notBuilt('splicer', 1);
     },
-    get canonical(): Canonical {
-      return notBuilt('canonical', 1);
-    },
+    canonical,
     parse,
     resolve,
     validate,

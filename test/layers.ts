@@ -4,9 +4,10 @@
  * Three rules, each checked on the files themselves:
  *   1. No module-level `let` or `var` under src/kernel or in src/engine.ts.
  *      Configuration lives in a closure, never in module state.
- *   2. Nothing under src/kernel imports outside the kernel. kernel/time.ts
- *      imports nothing at all, so a browser bundle that needs dates pulls in
- *      no schema library.
+ *   2. Nothing under src/kernel imports outside the kernel. The packages a
+ *      kernel file may name are listed per file: zod anywhere, node:crypto for
+ *      the hash, yaml for the splicer. kernel/time.ts imports nothing at all,
+ *      so a browser bundle that needs dates pulls in no schema library.
  *   3. Nothing under src imports from examples/. A country lives outside the
  *      engine package.
  *
@@ -83,14 +84,22 @@ function inside(path: string, dir: string): boolean {
 }
 
 // 2. The kernel is self-contained: relative imports stay inside it, the only
-//    package it may name is zod, and time.ts imports nothing at all.
+//    packages it may name are the ones a kernel job needs, and time.ts imports
+//    nothing at all.
 {
+  // A package a kernel file may name, by file. Kept narrow on purpose: a kernel
+  // module that grows a new dependency has to say so here.
   const PACKAGES = new Set(['zod']);
+  const BY_FILE: Readonly<Record<string, ReadonlySet<string>>> = {
+    'src/kernel/canonical.ts': new Set(['node:crypto']),
+    'src/kernel/splicer.ts': new Set(['yaml'])
+  };
   for (const file of walk(KERNEL)) {
+    const allowed = BY_FILE[rel(file)];
     for (const spec of specifiers(readFileSync(file, 'utf8'))) {
       const abs = target(file, spec);
       if (abs === null) {
-        if (!PACKAGES.has(spec)) {
+        if (!PACKAGES.has(spec) && !allowed?.has(spec)) {
           failures.push(`kernel: ${rel(file)} imports "${spec}", which is outside the kernel`);
         }
         continue;
