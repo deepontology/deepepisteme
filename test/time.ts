@@ -102,17 +102,6 @@ const DAY = 86_400_000;
   );
 }
 
-// The side argument is accepted and changes nothing.
-{
-  const bare = time.parseDateEdge('~2020');
-  const asStart = time.parseDateEdge('~2020', 'start');
-  const asEnd = time.parseDateEdge('~2020', 'end');
-  assert(
-    'a date edge is resolved the same for either side',
-    bare.earliest === asStart.earliest && asStart.earliest === asEnd.earliest
-  );
-}
-
 // Envelope trim is opt-in and reported.
 {
   let threw = false;

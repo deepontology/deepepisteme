@@ -21,6 +21,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./kernel": "./src/kernel/index.ts",
+    "./kernel/time": "./src/kernel/time.ts",
     "./parameters": "./src/parameters.ts",
     "./time": "./src/time.ts",
     "./claim": "./src/claim.ts",

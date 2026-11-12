@@ -88,11 +88,8 @@ export interface Time {
   readonly floor: number;
   readonly beforeWindowYears: number;
   readonly approxSlackDays: { readonly year: number; readonly month: number };
-  /**
-   * `side` is accepted so a caller can say which end of an interval it is
-   * resolving. No current token resolves differently by side; it is unused.
-   */
-  parseDateEdge(token: string, side?: 'start' | 'end'): DateEdge;
+  /** One date token. No token resolves differently at the start or the end of an interval. */
+  parseDateEdge(token: string): DateEdge;
   resolveInterval(start?: string, end?: string, opts?: ResolveOptions): ResolvedInterval;
   applyOngoingObservation(i: ResolvedInterval, lastObserved: number | null): ResolvedInterval;
   certainlyActive(i: ResolvedInterval, at: number): boolean;
