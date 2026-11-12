@@ -10,6 +10,9 @@
  *      so a browser bundle that needs dates pulls in no schema library.
  *   3. Nothing under src imports from examples/. A country lives outside the
  *      engine package.
+ *   4. Every file under src/kernel is exported by src/kernel/index.ts, so the
+ *      kernel's public surface is the list of files, not whatever a consumer
+ *      happened to import directly.
  *
  * The check is textual: a module-level declaration is a `let`/`var` starting
  * in column 0 (optionally after `export`). Indented declarations inside a
@@ -129,6 +132,23 @@ function inside(path: string, dir: string): boolean {
   }
 }
 
+// 4. Every kernel file is on the kernel's public surface.
+{
+  const indexFile = join(KERNEL, 'index.ts');
+  const exported = new Set(
+    specifiers(readFileSync(indexFile, 'utf8'))
+      .filter((spec) => spec.startsWith('./'))
+      .map((spec) => spec)
+  );
+  for (const file of walk(KERNEL)) {
+    if (file === indexFile) continue;
+    const spec = `./${relative(KERNEL, file).split(sep).join('/')}`;
+    if (!exported.has(spec)) {
+      failures.push(`surface: ${rel(file)} is not exported by src/kernel/index.ts`);
+    }
+  }
+}
+
 if (failures.length > 0) {
   console.error(`\n  ✗ layers: ${failures.length} violation(s)\n`);
   for (const f of failures) console.error(`    • ${f}`);
@@ -136,4 +156,4 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log('  ✓ layers: no module state, no kernel escape, no example inside src');
+console.log('  ✓ layers: no module state, no kernel escape, no example inside src, no unexported file');

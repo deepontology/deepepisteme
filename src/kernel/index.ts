@@ -10,5 +10,7 @@ export * from './translation.ts';
 export * from './exceptions.ts';
 export * from './envelope.ts';
 export * from './review.ts';
+export * from './kinds.ts';
+export * from './rules.ts';
 export * from './canonical.ts';
 export * from './splicer.ts';

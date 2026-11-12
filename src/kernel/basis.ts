@@ -16,7 +16,13 @@ import { z } from 'zod';
 
 export const Confidence = z.enum(['A', 'B', 'C', 'D']);
 export const Basis = z.enum(['documented', 'reported', 'inferred', 'unsubstantiated']);
-export const Verification = z.enum(['verified', 'needs-primary-source', 'disputed']);
+/**
+ * Where a claim sits in the research pipeline. 1.0 adds `unflagged`, the
+ * absence of an editorial check, and makes it the default on every claim kind.
+ * It moves the basis exactly as `verified` does: the missing check is not a
+ * weaker kind of claim.
+ */
+export const Verification = z.enum(['unflagged', 'verified', 'needs-primary-source', 'disputed']);
 
 export type ConfidenceValue = z.infer<typeof Confidence>;
 export type BasisValue = z.infer<typeof Basis>;

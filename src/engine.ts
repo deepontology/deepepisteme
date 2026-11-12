@@ -6,12 +6,12 @@
  * as an argument and everything below closes over it.
  *
  * Slice 0 builds the pieces it moves: the time model and the claim envelope.
- * Slice 1 adds the canonical projection and the splicer. The rest of the
- * interface is present and throws, so a caller meets a named wall, not an
- * undefined function.
+ * Slice 1 adds the canonical projection and the splicer. Slice 2 adds the kind
+ * register, parse() and the first three rules. The rest of the interface is
+ * present and throws, so a caller meets a named wall, not an undefined
+ * function.
  */
 
-import type { z } from 'zod';
 import {
   createTime,
   type ResolvedInterval,
@@ -30,6 +30,8 @@ import {
 } from './kernel/basis.ts';
 import {
   REQUIRED_SOURCE_KINDS,
+  SCHEMA_RULE,
+  issueRule,
   nonBlank,
   slug,
   withClaimEnvelope as envelopeBuilder,
@@ -41,37 +43,52 @@ import {
   reviewOverclaims as reviewOverclaimsIn,
   type GazetteVocabulary
 } from './kernel/review.ts';
-import type { EnvelopeExceptions, ExceptionRegister } from './kernel/exceptions.ts';
+import {
+  NO_EXCEPTIONS,
+  convertRegister,
+  type EnvelopeExceptions,
+  type ExceptionRegister
+} from './kernel/exceptions.ts';
+import {
+  KERNEL_KIND_NAMES,
+  createKernelKinds,
+  envelopedSchema,
+  objectSchemaOf,
+  type KindDefinition,
+  type KindLiterals
+} from './kernel/kinds.ts';
+import {
+  KERNEL_RULES,
+  type Finding,
+  type ParsedRecords,
+  type Rule,
+  type RuleContext
+} from './kernel/rules.ts';
 import { createSplicer, type Splicer } from './kernel/splicer.ts';
 import { hash as canonicalHash, project as canonicalProject, type CanonicalOptions } from './kernel/canonical.ts';
 
 export type { ResolvedInterval, Time, TimeParameters };
 export type { BasisValue, ConfidenceValue, VerificationValue };
 export type { EnvelopeExceptions, ExceptionRegister, ExceptionSource };
+export type { KindDefinition } from './kernel/kinds.ts';
+export type { Finding, Rule, RuleContext } from './kernel/rules.ts';
 
 // ---------------------------------------------------------------------------------------------
-// Findings, rules, the pipeline
+// The pipeline
 // ---------------------------------------------------------------------------------------------
-
-/** One finding from one rule about one record. */
-export interface Finding {
-  rule: string;
-  severity: 'error' | 'warning';
-  record?: { kind: string; id: string };
-  message: string;
-}
 
 /**
- * A validator. `needs` says which stage it runs in: 'parsed' rules see records
- * as authored, 'resolved' rules also see intervals and derived basis.
+ * Records as loaded from YAML, keyed by kind. parse() is what types them.
+ * ParsedDataset carries an entry for every registered kind, empty when the
+ * dataset has no records of it.
  */
-export interface Rule<Ctx = unknown> {
-  id: string;
-  title: string;
-  layer: 'kernel' | 'atlas' | 'deployment';
-  severity: 'error' | 'warning';
-  needs: 'parsed' | 'resolved';
-  run(ctx: Ctx): Finding[];
+export type RawDataset = Readonly<Record<string, readonly unknown[]>>;
+export type ParsedDataset = ParsedRecords;
+export interface ResolvedDataset {
+  records: ParsedDataset;
+  intervals: ReadonlyMap<string, ResolvedInterval>;
+  basis: ReadonlyMap<string, BasisValue>;
+  index: ReadonlyMap<string, { kind: string; record: { id: string } }>;
 }
 
 /**
@@ -92,27 +109,9 @@ export interface Canonical {
 }
 export type { CanonicalOptions };
 
-/** Records as loaded from YAML, keyed by kind. parse() is what types them. */
-export type RawDataset = Readonly<Record<string, readonly unknown[]>>;
-export type ParsedDataset = Readonly<Record<string, readonly { id: string }[]>>;
-export interface ResolvedDataset {
-  records: ParsedDataset;
-  intervals: ReadonlyMap<string, ResolvedInterval>;
-  basis: ReadonlyMap<string, BasisValue>;
-  index: ReadonlyMap<string, { kind: string; record: { id: string } }>;
-}
-
 // ---------------------------------------------------------------------------------------------
 // Deployment: everything that is about one country or one subject
 // ---------------------------------------------------------------------------------------------
-
-export interface KindDefinition {
-  kind: string;
-  file: string;
-  schema: z.ZodType;
-  bearsClaims: boolean;
-  layer: 'kernel' | 'atlas' | 'deployment';
-}
 
 export interface Deployment {
   name: string;
@@ -198,10 +197,10 @@ export interface Engine {
   readonly splicer: Splicer;
   readonly canonical: Canonical;
 
-  parse(raw: RawDataset, exceptions: ExceptionRegister): { records: ParsedDataset; findings: Finding[] };
+  parse(raw: RawDataset, exceptions?: ExceptionRegister): { records: ParsedDataset; findings: Finding[] };
   resolve(records: ParsedDataset): ResolvedDataset;
   validate(resolved: ResolvedDataset): Finding[];
-  check(raw: RawDataset, exceptions: ExceptionRegister): { ok: boolean; findings: Finding[]; resolved?: ResolvedDataset };
+  check(raw: RawDataset, exceptions?: ExceptionRegister): { ok: boolean; findings: Finding[]; resolved?: ResolvedDataset };
   buildMatcher(entities: readonly unknown[], opts?: unknown): unknown;
 }
 
@@ -228,6 +227,9 @@ function validateDeployment(d: Deployment): void {
 
   checkList('translatedLocales', d.translatedLocales);
   checkList('sourceLanguages', d.sourceLanguages);
+  if (!d.sourceLanguages.includes('en')) {
+    throw new Error('deployment: sourceLanguages must include "en", the default the source kind applies');
+  }
   checkList('gazette.vocabulary', d.gazette?.vocabulary);
   checkList('gazette.sourcePrefixes', d.gazette?.sourcePrefixes);
   checkList('registry.registries', d.registry?.registries);
@@ -279,7 +281,14 @@ function validateDeployment(d: Deployment): void {
     const seen = new Set<string>();
     for (const k of d.extraKinds) {
       if (!nonBlank(k.kind)) throw new Error('deployment: extraKinds entries need a kind name');
+      if ((KERNEL_KIND_NAMES as readonly string[]).includes(k.kind)) {
+        throw new Error(`deployment: extraKinds names "${k.kind}", which is a kernel kind`);
+      }
       if (seen.has(k.kind)) throw new Error(`deployment: extraKinds repeats "${k.kind}"`);
+      if (k.layer !== 'kernel' && k.layer !== 'atlas' && k.layer !== 'deployment') {
+        throw new Error(`deployment: extraKinds "${k.kind}" has no valid layer`);
+      }
+      if (k.bearsClaims) objectSchemaOf(k);
       seen.add(k.kind);
     }
   }
@@ -302,8 +311,17 @@ export function createEngine(deployment: Deployment): Engine {
 
   const time = createTime(deployment.time);
 
+  const literals: KindLiterals = {
+    sourceLanguages: deployment.sourceLanguages,
+    translatedLocales: deployment.translatedLocales
+  };
+
+  const kinds: KindDefinition[] = [...createKernelKinds(literals), ...(deployment.extraKinds ?? [])];
+  const kindMap: ReadonlyMap<string, KindDefinition> = new Map(kinds.map((k) => [k.kind, k]));
+  const claimKinds: ReadonlySet<string> = new Set(kinds.filter((k) => k.bearsClaims).map((k) => k.kind));
+
   const envelope: Envelope = Object.freeze({
-    exceptions: Object.freeze({}) as EnvelopeExceptions,
+    exceptions: NO_EXCEPTIONS,
     nonBlank,
     withClaimEnvelope: envelopeBuilder,
     deriveBasis,
@@ -319,9 +337,76 @@ export function createEngine(deployment: Deployment): Engine {
     requiredSourceKinds: REQUIRED_SOURCE_KINDS
   });
 
-  function parse(): never {
-    return notBuilt('parse', 2);
+  /**
+   * Stage 1. Every record through its kind's schema; a schema-level problem is
+   * a finding, never a thrown error. The register is converted once per call,
+   * so it is the register this call was given that decides which records parse
+   * and which findings stand.
+   */
+  function parse(raw: RawDataset, register?: ExceptionRegister): { records: ParsedDataset; findings: Finding[] } {
+    const exceptions = convertRegister(register, time.cutoff);
+    const findings: Finding[] = [];
+
+    for (const entry of exceptions.expired) {
+      findings.push({
+        rule: entry.findingRule,
+        severity: 'error',
+        ...(entry.record ? { record: entry.record } : {}),
+        message: `the exception "${entry.key}" no longer counts: ${entry.detail}; source the record, fix it, or re-justify it with a new deadline`
+      });
+    }
+
+    const records: Record<string, { id: string }[]> = {};
+    const named = Object.keys(raw);
+    const order = [...kindMap.keys(), ...named.filter((kind) => !kindMap.has(kind))];
+
+    for (const kind of order) {
+      const def = kindMap.get(kind);
+      if (!def) {
+        findings.push({
+          rule: SCHEMA_RULE,
+          severity: 'error',
+          message: `unknown kind "${kind}": the engine has no schema for it, so its records are not read`
+        });
+        continue;
+      }
+
+      const out: { id: string }[] = [];
+      records[kind] = out;
+      const list = raw[kind];
+      if (list === undefined) continue;
+      if (!Array.isArray(list)) {
+        findings.push({
+          rule: SCHEMA_RULE,
+          severity: 'error',
+          message: `kind "${kind}" must be a list of records`
+        });
+        continue;
+      }
+
+      const schema = envelopedSchema(def, exceptions);
+      list.forEach((entry, index) => {
+        const label = recordLabel(entry, index);
+        const result = schema.safeParse(entry);
+        if (result.success) {
+          out.push(result.data as { id: string });
+          return;
+        }
+        for (const issue of result.error.issues) {
+          const path = issue.path.length ? `${issue.path.join('.')}: ` : '';
+          findings.push({
+            rule: issueRule(issue),
+            severity: 'error',
+            record: { kind, id: label },
+            message: `${kind} ${label}: ${path}${issue.message}`
+          });
+        }
+      });
+    }
+
+    return { records, findings };
   }
+
   function resolve(): never {
     return notBuilt('resolve', 4);
   }
@@ -336,26 +421,27 @@ export function createEngine(deployment: Deployment): Engine {
     hash: (dataset: unknown, opts?: CanonicalOptions) => canonicalHash(dataset, opts)
   });
 
+  const rules: readonly Rule[] = Object.freeze([...KERNEL_RULES, ...(deployment.extraRules ?? [])]);
+
   const engine: Engine = {
     deployment,
     time,
     envelope,
-    get kinds(): ReadonlyMap<string, KindDefinition> {
-      return notBuilt('kinds', 3);
-    },
-    get rules(): readonly Rule[] {
-      return notBuilt('rules', 4);
-    },
+    kinds: kindMap,
+    rules,
     splicer,
     canonical,
     parse,
     resolve,
     validate,
-    check() {
-      parse();
+    check(raw: RawDataset, register?: ExceptionRegister) {
+      const { findings } = parse(raw, register);
+      if (findings.some((f) => f.severity === 'error')) {
+        return { ok: false, findings };
+      }
       resolve();
       validate();
-      return { ok: false, findings: [] };
+      return { ok: false, findings };
     },
     buildMatcher(): never {
       return notBuilt('buildMatcher', 5);
@@ -363,6 +449,15 @@ export function createEngine(deployment: Deployment): Engine {
   };
 
   return Object.freeze(engine);
+}
+
+/** The record label a finding names: the authored id, or its position. */
+function recordLabel(entry: unknown, index: number): string {
+  if (entry && typeof entry === 'object' && 'id' in entry) {
+    const id = (entry as { id: unknown }).id;
+    if (typeof id === 'string' && id.length > 0) return id;
+  }
+  return `#${index}`;
 }
 
 /** The atlas defaults a deployment starts from. */
