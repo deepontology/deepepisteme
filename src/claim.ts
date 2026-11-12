@@ -1,153 +1,79 @@
 /**
- * claim.ts — the evidence envelope.
+ * claim.ts: the v0.1 evidence module, now a view of one engine.
  *
- * Every claim-bearing record carries the same nine fields:
- *   confidence, basis (derived), verification, attributed_to,
- *   reasoning, falsifiable_by, disputes, review, sources
+ * The envelope itself (grades, basis, reviews, disputes, the exception sets)
+ * and the power-map vocabulary live in kernel/ and atlas/. This module keeps
+ * the old import path working for deeptunisia's scripts: it re-exports those
+ * pieces and builds the record schemas from them. The exception sets it was
+ * configured with are handed to the envelope as a live getter.
  *
- * Basis answers "what KIND of claim is this?" — not "how strong is it?".
- * A reasoned inference and a thinly-sourced report are both weak, but weak
- * in completely different ways. Collapsing them is how a project quietly
- * becomes a rumour mill.
- *
- *   documented       An official record states this.
- *   reported         Credible publications report it; attributed, not verified.
- *   inferred         Nobody states this directly; reasoned from structure.
- *   unsubstantiated  Circulates without reliable evidence. Kept, not deleted.
+ * removed in slice 3
  */
 
 import { z } from 'zod';
-import { getParameters } from './parameters.ts';
+import {
+  Basis,
+  Confidence,
+  ConfidenceValue,
+  Verification,
+  ReviewMethod,
+  TranslatedBy,
+  ReviewSchema,
+  DisputeSchema,
+  deriveBasis,
+  isBasisUpgrade,
+  nonBlank,
+  slug,
+  REQUIRED_SOURCE_KINDS,
+  TRANSLATION_TIERS,
+  type BasisValue,
+  type EnvelopeExceptions
+} from './kernel/index.ts';
+import {
+  edgeDirection,
+  influenceChannels,
+  institutionTypes,
+  layers,
+  relationshipTypes,
+  type EdgeDirectionKind
+} from './atlas/vocabulary.ts';
+import { legacyEngine } from './legacy.ts';
 
-const slug = z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'ids must be lowercase kebab-case');
-
-/**
- * A mandatory text field is satisfied only by a string with real content.
- * `z.string().min(1)` accepts a single space; a required field that whitespace
- * satisfies is not required. Callers pass the field's existing minimum.
- */
-export function nonBlank(v: unknown, min = 1): boolean {
-  return typeof v === 'string' && v.trim().length >= min;
-}
-
-export const Confidence = z.enum(['A', 'B', 'C', 'D']);
-export const Basis = z.enum(['documented', 'reported', 'inferred', 'unsubstantiated']);
-export const Verification = z.enum(['verified', 'needs-primary-source', 'disputed']);
-export const TranslatedBy = z.enum(['machine', 'model-reviewed', 'machine-reviewed', 'human']);
-export const ReviewMethod = z.enum(['source-check', 'dedup', 'attribute', 'accept-reject', 'judge']);
-
-/**
- * Claim records that must cite at least one source. Roles, questions, regions,
- * eras and institutions are scaffolding: their standing is carried by the
- * records inside them.
- */
-export const REQUIRED_SOURCE_KINDS = new Set([
-  'institution',
-  'person',
-  'position',
-  'relationship',
-  'event',
-  'agreement',
-  'world-claim',
-  'company',
-  'contract',
-  'licence',
-  'declaration',
-  'education',
-  'place'
-]);
-
-const BASIS_STRENGTH: Record<z.infer<typeof Basis>, number> = {
-  unsubstantiated: 0,
-  inferred: 1,
-  reported: 2,
-  documented: 3
+export {
+  Basis,
+  Confidence,
+  Verification,
+  ReviewMethod,
+  TranslatedBy,
+  ReviewSchema,
+  DisputeSchema,
+  deriveBasis,
+  isBasisUpgrade,
+  nonBlank,
+  REQUIRED_SOURCE_KINDS,
+  TRANSLATION_TIERS
 };
+export type { BasisValue, ConfidenceValue };
 
-/** True when `authored` claims more epistemic standing than `derived`. */
-export function isBasisUpgrade(
-  authored: z.infer<typeof Basis>,
-  derived: z.infer<typeof Basis>
-): boolean {
-  return BASIS_STRENGTH[authored] > BASIS_STRENGTH[derived];
-}
+/** Explicit escapes the envelope is parsed with. */
+export type SchemaExceptions = EnvelopeExceptions;
 
-/** Explicit escapes configured before any record is parsed. */
-export interface SchemaExceptions {
-  /** `${kind}:${id}` whose empty `sources` list is a live escape. */
-  emptySources?: Set<string>;
-  /** `${kind}:${id}:${derived}>${authored}` basis overrides awaiting review. */
-  basisOverrides?: Set<string>;
-}
+let schemaExceptions: EnvelopeExceptions = {};
 
-let schemaExceptions: SchemaExceptions = {};
-
-export function configureClaimExceptions(exceptions: SchemaExceptions): void {
+export function configureClaimExceptions(exceptions: EnvelopeExceptions): void {
   schemaExceptions = exceptions;
 }
 
-export type ConfidenceValue = z.infer<typeof Confidence>;
-export type BasisValue = z.infer<typeof Basis>;
-
-export const ReviewSchema = z.strictObject({
-  by: z.string().refine((v) => nonBlank(v, 2), 'reviewer name must be at least 2 non-blank characters'),
-  date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'review date must be ISO YYYY-MM-DD')
-    .refine((d) => {
-      const [y, mo, da] = d.split('-').map(Number);
-      const t = new Date(Date.UTC(y, mo - 1, da));
-      return t.getUTCFullYear() === y && t.getUTCMonth() === mo - 1 && t.getUTCDate() === da;
-    }, 'review date must be calendar-valid'),
-  method: ReviewMethod,
-  note: z.string().optional()
-});
-
-export const DisputeSchema = z.strictObject({
-  claim: z
-    .string()
-    .refine((v) => nonBlank(v, 3), 'a dispute claim must be at least 3 non-blank characters'),
-  held_by: z
-    .string()
-    .refine((v) => nonBlank(v, 2), 'a dispute holder must be at least 2 non-blank characters'),
-  source: slug.optional(),
-  assessment: z.string().optional(),
-  status: z.enum(['open', 'adopted', 'rejected']).optional(),
-  resolved_by: z.string().optional(),
-  resolved_at: z.string().optional()
-});
-
-export function deriveBasis(
-  confidence: 'A' | 'B' | 'C' | 'D',
-  verification: 'verified' | 'needs-primary-source' | 'disputed',
-  explicit?: 'documented' | 'reported' | 'inferred' | 'unsubstantiated'
-): BasisValue {
-  if (explicit) return explicit;
-  if (confidence === 'A') return 'documented';
-  if (confidence === 'D') return 'unsubstantiated';
-  if (confidence === 'C' && verification === 'needs-primary-source') return 'inferred';
-  return 'reported';
+export function withClaimEnvelope<S extends z.ZodObject<z.ZodRawShape>>(kind: string, schema: S) {
+  return legacyEngine.envelope.withClaimEnvelope(kind, schema, () => schemaExceptions);
 }
 
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
+export const TRANSLATED_LOCALES = legacyEngine.deployment.translatedLocales;
 
-/**
- * A review note may not claim a gazette verification without a gazette source.
- * Vocabulary and source prefixes come from data/parameters.yaml.
- */
+/** A review note may not claim a gazette verification without a gazette source. */
 export function reviewOverclaims(method: string | undefined, sources: string[]): boolean {
-  const gazette = getParameters().jurisdiction.gazette;
-  const claimsGazette = new RegExp(`\\b(${gazette.vocabulary.map(escapeRegex).join('|')})\\b`, 'i');
-  const gazetteSource = new RegExp(`^(${gazette.sourcePrefixes.map(escapeRegex).join('|')})`);
-  if (!method || !claimsGazette.test(method)) return false;
-  if (/\bnot\b[^.]{0,40}\b(verified|checked)\b/i.test(method)) return false;
-  return !sources.some((s) => gazetteSource.test(s));
+  return legacyEngine.envelope.reviewOverclaims(method, sources);
 }
-
-export const TRANSLATED_LOCALES = ['fr', 'ar'] as const;
-export const TRANSLATION_TIERS = ['machine', 'model-reviewed', 'machine-reviewed', 'human'] as const;
 
 export function translatable(name: string, kind: 'string' | 'list' = 'string') {
   const value = kind === 'list' ? z.array(z.string()) : z.string();
@@ -159,80 +85,16 @@ export function translatable(name: string, kind: 'string' | 'list' = 'string') {
   ) as Record<string, z.ZodTypeAny>;
 }
 
-/**
- * Shared claim envelope — applied to every claim-bearing kind so no future
- * kind can forget it.
- *
- *   * Mandatory prose is checked with `nonBlank`: whitespace is a missing field.
- *   * A derived `inferred` claim needs reasoning and a falsifier; a derived
- *     `unsubstantiated` claim needs attribution; grade C/D claims need
- *     attribution.
- *   * Required kinds must cite at least one source.
- *   * An authored basis stronger than the grade implies is an override. It
- *     requires a review, reasoning, a falsifier where an inference is involved,
- *     a source and `basis_override_reason`; legacy overrides are enumerated as
- *     live exceptions instead of being silently reverted.
- */
-export function withClaimEnvelope<S extends z.ZodObject<z.ZodRawShape>>(
-  kind: string,
-  schema: S
-) {
-  return schema
-    .refine(
-      (r: any) => !((r.confidence === 'C' || r.confidence === 'D') && !nonBlank(r.attributed_to)),
-      { message: 'grade C/D claims must name who is making the claim (attributed_to, non-blank)' }
-    )
-    .refine(
-      (r: any) => {
-        const derived = deriveBasis(r.confidence, r.verification, r.basis);
-        return !(derived === 'inferred' && (!nonBlank(r.reasoning) || !nonBlank(r.falsifiable_by)));
-      },
-      { message: 'an inferred claim must state its reasoning and what would falsify it (non-blank)' }
-    )
-    .refine(
-      (r: any) =>
-        !(
-          deriveBasis(r.confidence, r.verification, r.basis) === 'unsubstantiated' &&
-          !nonBlank(r.attributed_to)
-        ),
-      { message: 'an unsubstantiated claim must name where the claim circulates (non-blank)' }
-    )
-    .refine(
-      (r: any) => {
-        if (!REQUIRED_SOURCE_KINDS.has(kind)) return true;
-        if ((r.sources?.length ?? 0) > 0) return true;
-        return schemaExceptions.emptySources?.has(`${kind}:${r.id}`) ?? false;
-      },
-      {
-        message:
-          'rule 2: every claim record must cite at least one source, or be listed in the exception register with an owner and a deadline'
-      }
-    )
-    .superRefine((r: any, ctx) => {
-      if (!r.basis) return;
-      const derived = deriveBasis(r.confidence, r.verification, undefined);
-      if (!isBasisUpgrade(r.basis, derived)) return;
-      if (schemaExceptions.basisOverrides?.has(`${kind}:${r.id}:${derived}>${r.basis}`)) return;
-      const pair = `authored basis "${r.basis}" over grade-implied "${derived}"`;
-      const issue = (missing: string) =>
-        ctx.addIssue({ code: 'custom', message: `${pair}: ${missing}`, path: ['basis'] });
-      if (!r.review) issue('a basis override requires a review object with a date and method');
-      if (!nonBlank(r.reasoning)) issue('a basis override requires non-blank reasoning');
-      if ((r.basis === 'inferred' || derived === 'inferred') && !nonBlank(r.falsifiable_by)) {
-        issue('a basis override on an inference requires a non-blank falsifiable_by');
-      }
-      if ((r.sources?.length ?? 0) < 1) issue('a basis override requires at least one source');
-      if (!nonBlank(r.basis_override_reason, 10)) {
-        issue(
-          'a basis override requires basis_override_reason of at least 10 non-blank characters, or a live exception-register entry'
-        );
-      }
-    });
-}
+export const InstitutionType = z.enum(institutionTypes);
 
-// ---------------------------------------------------------------------------
-// Re-exports used by build.ts: common schemas
-// ---------------------------------------------------------------------------
+export const Layer = z.enum(layers);
+
+export const RelationshipType = z.enum(relationshipTypes);
+
+export type DirectionKind = EdgeDirectionKind;
+export const EDGE_DIRECTION = edgeDirection;
+
+export const INFLUENCE_CHANNELS = influenceChannels;
 
 export const SourceSchema = z.strictObject({
   id: slug,
@@ -247,36 +109,6 @@ export const SourceSchema = z.strictObject({
   ...translatable('excerpt'),
   ...translatable('title_gloss')
 });
-
-export const InstitutionType = z.enum([
-  'presidency',
-  'government',
-  'ministry',
-  'military',
-  'police',
-  'party',
-  'company',
-  'association',
-  'media',
-  'legislature',
-  'judiciary',
-  'bank',
-  'state-enterprise',
-  'holding',
-  'ngo',
-  'regulator',
-  'university'
-]);
-
-export const Layer = z.enum([
-  'security',
-  'political',
-  'economic',
-  'media',
-  'judicial',
-  'civil',
-  'foreign'
-]);
 
 export const InstitutionSchema = withClaimEnvelope(
   'institution',
@@ -365,8 +197,6 @@ const dateToken = z
     'date token must be YYYY, YYYY-MM, YYYY-MM-DD, ~YYYY[-MM], <=YYYY[-MM], >=YYYY[-MM], ?, ongoing, or verified:...'
   );
 
-const intervalSpec = z.object({ start: dateToken.optional(), end: dateToken.optional() });
-
 export const PositionSchema = withClaimEnvelope(
   'position',
   z.strictObject({
@@ -396,83 +226,6 @@ export const PositionSchema = withClaimEnvelope(
     ...translatable('notes', 'list')
   })
 );
-
-export const RelationshipType = z.enum([
-  'institutional',
-  'appointment',
-  'succession',
-  'family',
-  'business',
-  'party',
-  'security',
-  'funding',
-  'diplomatic',
-  'political-alliance',
-  'political-conflict',
-  'prosecution',
-  'reported-influence',
-  'allegation',
-  'dismissal',
-  'ownership',
-  'board',
-  'shareholder',
-  'sponsorship',
-  'partnership',
-  'franchise',
-  'oversight',
-  'regulatory-authority',
-  'licence',
-  'sanction',
-  'coalition',
-  'endorsement',
-  'candidate-campaign',
-  'influence',
-  'advisory'
-]);
-
-export type DirectionKind = 'directed' | 'symmetric' | 'contextual';
-export const EDGE_DIRECTION: Record<z.infer<typeof RelationshipType>, DirectionKind> = {
-  institutional: 'contextual',
-  appointment: 'directed',
-  succession: 'directed',
-  dismissal: 'directed',
-  family: 'symmetric',
-  business: 'contextual',
-  party: 'contextual',
-  security: 'contextual',
-  funding: 'directed',
-  diplomatic: 'symmetric',
-  'political-alliance': 'symmetric',
-  'political-conflict': 'symmetric',
-  prosecution: 'directed',
-  'reported-influence': 'contextual',
-  allegation: 'contextual',
-  ownership: 'directed',
-  board: 'directed',
-  shareholder: 'directed',
-  sponsorship: 'directed',
-  partnership: 'symmetric',
-  franchise: 'directed',
-  oversight: 'directed',
-  'regulatory-authority': 'directed',
-  licence: 'directed',
-  sanction: 'directed',
-  coalition: 'symmetric',
-  endorsement: 'directed',
-  'candidate-campaign': 'directed',
-  influence: 'directed',
-  advisory: 'directed'
-};
-
-export const INFLUENCE_CHANNELS = [
-  'appointment',
-  'advice-relationship',
-  'money',
-  'publicity',
-  'marriage',
-  'secret',
-  ''
-] as const;
 
 export const RelationshipSchema = withClaimEnvelope(
   'relationship',
