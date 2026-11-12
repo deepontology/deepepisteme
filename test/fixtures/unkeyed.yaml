@@ -1,0 +1,13 @@
+# Records with no id field: a file a migration has not reached yet.
+- from: vodrik
+  to: halbeck
+  type: patronage
+
+- from: halbeck
+  to: zorn
+  type: patronage
+
+- from: zorn
+  to: vodrik
+  type: patronage
+

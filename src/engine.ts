@@ -42,6 +42,7 @@ import {
   type GazetteVocabulary
 } from './kernel/review.ts';
 import type { EnvelopeExceptions, ExceptionRegister } from './kernel/exceptions.ts';
+import { createSplicer, type Splicer } from './kernel/splicer.ts';
 import { hash as canonicalHash, project as canonicalProject, type CanonicalOptions } from './kernel/canonical.ts';
 
 export type { ResolvedInterval, Time, TimeParameters };
@@ -78,10 +79,7 @@ export interface Rule<Ctx = unknown> {
  * operations and the self-check that the rest of the file did not move. The
  * target travels inside the edit, so a call is `applyEdit(text, edit)`.
  */
-export interface Splicer {
-  applyEdit(fileText: string, edit: unknown): { text: string; splice: unknown };
-  assertOnlyTargetChanged(before: string, after: string, targetId: string | null): void;
-}
+export type { Edit, EmitResult, Records, Splice, Splicer, Target } from './kernel/splicer.ts';
 
 /**
  * Canonical bytes and the dataset hash. Moves upstream from scripts/canonical.ts.
@@ -331,6 +329,8 @@ export function createEngine(deployment: Deployment): Engine {
     return notBuilt('validate', 4);
   }
 
+  const splicer = createSplicer();
+
   const canonical: Canonical = Object.freeze({
     project: (dataset: unknown, opts?: CanonicalOptions) => canonicalProject(dataset, opts),
     hash: (dataset: unknown, opts?: CanonicalOptions) => canonicalHash(dataset, opts)
@@ -346,9 +346,7 @@ export function createEngine(deployment: Deployment): Engine {
     get rules(): readonly Rule[] {
       return notBuilt('rules', 4);
     },
-    get splicer(): Splicer {
-      return notBuilt('splicer', 1);
-    },
+    splicer,
     canonical,
     parse,
     resolve,
