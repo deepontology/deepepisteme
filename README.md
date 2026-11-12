@@ -19,13 +19,13 @@ compile time, rather than at reading time.
 
 | Module | What it does |
 |---|---|
-| `src/engine.ts` | `createEngine(deployment)`, the 1.0 entry point: validates a deployment and returns its time model and envelope helpers |
-| `src/kernel/` | The layers true of any evidence-graded corpus: `kernel/time.ts` (`createTime`, the interval resolver), the basis ladder, reviews and disputes, the claim envelope. No country, no module state |
+| `src/engine.ts` | `createEngine(deployment)`, the 1.0 entry point: validates a deployment and returns its time model, envelope helpers, canonical projection and splicer |
+| `src/kernel/` | The layers true of any evidence-graded corpus: `kernel/time.ts` (`createTime`, the interval resolver), the basis ladder, reviews and disputes, the claim envelope, `kernel/canonical.ts` (the stable projection and the dataset hash), `kernel/splicer.ts` (the single-region YAML splicer). No country, no module state |
 | `src/claim.ts` | Record schemas built on the evidence envelope; the envelope itself now lives in `src/kernel/` and is re-exported here |
 | `src/time.ts` | v0.1 path to the interval resolver: `src/kernel/time.ts` holds `createTime(parameters)`; this module delegates to one Time object |
 | `src/config.ts` | `ParametersSchema` — **the fork point**. One YAML file retargets the whole engine |
 | `src/validate.ts` | Composable validator passes (`passReferential`, `passUnmooredInfluence`, `passDirection`, `passReviewOverclaim`, …) |
-| `src/emit.ts` | Single-region splicer (`applyEdit`) — every edit touches one contiguous region; the rest of the file is byte-identical |
+| `src/emit.ts` | v0.1 path to a single-region splicer (`applyEdit`); 1.0 callers use `engine.splicer` from `src/kernel/splicer.ts` |
 | `src/match.ts` | Deterministic entity linker (`buildMatcher`) — string matching over authored surface forms, no language model in the path |
 | `src/build.ts` | Minimal build: load → configure → resolve intervals → validate → emit `dataset.json` |
 | `data/parameters.yaml` | Template — replace with your jurisdiction's bbox, gazette vocabulary, registry, time bounds |
@@ -50,7 +50,7 @@ directory, with its own parameters, through the same validators Tunisia uses.
 ```bash
 npm ci
 npm run data   # build src/generated/dataset.json + static/dataset.json
-npm run test   # gate: layers, two engines, intervals, counts, envelope, splicer, matcher
+npm run test   # gate: layers, canonical hash, splicer, two engines, intervals, counts, envelope, matcher
 npm run check  # tsc --noEmit
 ```
 
@@ -78,8 +78,9 @@ DeepTunisia's repository is untouched. This crate was extracted from:
 * `scripts/schema.ts` → `src/claim.ts`
 * `scripts/dates.ts` → `src/time.ts`
 * `scripts/parameters.ts` → `src/config.ts`
+* `scripts/canonical.ts` → `src/kernel/canonical.ts`
 * `scripts/build-data.ts` (validator passes) → `src/validate.ts`
-* `scripts/emit.ts` → `src/emit.ts` (preserved verbatim, including the single-region splicer guarantee)
+* `scripts/emit.ts` → `src/kernel/splicer.ts` (the 1.0 splicer, single-region guarantee included); `src/emit.ts` keeps the v0.1 path until slice 3
 * `src/lib/match.ts` → `src/match.ts`
 
 Tunisia-specific literals (bounding box, gazette prefixes, registry slugs) were

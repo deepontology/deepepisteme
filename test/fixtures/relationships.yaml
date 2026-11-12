@@ -1,0 +1,14 @@
+- id: rel-vodrik-halbeck
+  from: vodrik
+  to: halbeck
+  type: patronage
+  start: "1956"
+  note: A synthetic edge used to test positional targeting
+
+- id: rel-halbeck-zorn
+  from: halbeck
+  to: zorn
+  type: patronage
+  start: "1961"
+  note: A second synthetic edge
+
