@@ -15,6 +15,7 @@ import { z } from 'zod';
 
 import { createEngine, type Deployment } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
+import { SourceRelation, withClaimEnvelope } from '../src/kernel/envelope.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -248,6 +249,8 @@ const positionSchema = z.strictObject({
   reasoning: z.string().optional(),
   falsifiable_by: z.string().optional(),
   basis_override_reason: z.string().optional(),
+  source_relation: SourceRelation.optional(),
+  independence: z.number().int().min(1).optional(),
   review: z.strictObject({ by: z.string(), date: z.string() }).optional()
 });
 
@@ -423,6 +426,158 @@ function only(findings: { rule: string; record?: { kind: string; id: string }; m
   assert('the first engine honours its register', claims.parse({ position: [{ id: 'pos-13' }] }, withEscape).findings.length === 0);
   assert('a second engine sees no register', other.parse({ position: [{ id: 'pos-13' }] }).findings.length === 1);
   assert('the first engine does not remember the register', claims.parse({ position: [{ id: 'pos-13' }] }).findings.length === 1);
+}
+
+// ---------------------------------------------------------------------------------------------
+// V26: the source relationship is a second axis beside the basis
+// ---------------------------------------------------------------------------------------------
+
+{
+  const compatible = {
+    id: 'pos-20',
+    sources: ['s-1'],
+    confidence: 'A' as const,
+    source_relation: 'direct-record' as const,
+    independence: 1
+  };
+  assert('V26: a compatible relation parses', claims.parse({ position: [compatible] }).findings.length === 0);
+
+  const incompatible = claims.parse({
+    position: [{ ...compatible, id: 'pos-21', source_relation: 'single-report' as const }]
+  });
+  const finding = only(incompatible.findings);
+  assert(
+    'V26: an incompatible relation gives exactly one finding naming V26',
+    !!finding && finding.rule === 'V26',
+    JSON.stringify(incompatible.findings)
+  );
+  assert(
+    'V26: the finding names the record and the basis it contradicts',
+    finding?.record?.id === 'pos-21' && finding.message.includes('incompatible with basis "documented"'),
+    finding?.message
+  );
+
+  const noCount = claims.parse({ position: [{ ...compatible, id: 'pos-22', independence: undefined }] });
+  assert(
+    'V26: a relation without an origin count is found',
+    noCount.findings.some((f) => f.rule === 'V26' && f.message.includes('requires independence')),
+    JSON.stringify(noCount.findings)
+  );
+
+  const overCount = claims.parse({
+    position: [
+      {
+        id: 'pos-23',
+        sources: ['s-1', 's-2'],
+        confidence: 'B' as const,
+        source_relation: 'corroborated-report' as const,
+        independence: 3
+      }
+    ]
+  });
+  assert(
+    'V26: more origins than cited sources is found',
+    overCount.findings.some((f) => f.rule === 'V26' && f.message.includes('independence 3 exceeds the 2 cited source(s)')),
+    JSON.stringify(overCount.findings)
+  );
+
+  const beside = claims.parse(
+    {
+      position: [
+        {
+          id: 'pos-24',
+          sources: ['s-1'],
+          confidence: 'B' as const,
+          basis: 'documented' as const,
+          source_relation: 'direct-report' as const,
+          independence: 1
+        }
+      ]
+    },
+    {
+      sourceExceptions: new Map(),
+      basisOverrides: new Map([['position:pos-24:reported>documented', { reason: 'pre-dates the rule', source: 'gazette-1' }]])
+    }
+  );
+  assert(
+    'V26 fires beside a registered override',
+    beside.findings.length === 1 && beside.findings[0].rule === 'V26',
+    JSON.stringify(beside.findings)
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// The vacancy kind: a required kind, so an empty office cannot pass unsourced
+// ---------------------------------------------------------------------------------------------
+
+{
+  const withVacancy = createEngine({
+    ...claimDeployment,
+    extraKinds: [
+      ...claimDeployment.extraKinds!,
+      {
+        kind: 'vacancy',
+        file: 'vacancies.yaml',
+        schema: z.strictObject({
+          id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/, 'ids must be lowercase kebab-case'),
+          sources: z.array(z.string()).default([]),
+          confidence: z.enum(['A', 'B', 'C', 'D']).default('B')
+        }),
+        bearsClaims: true,
+        layer: 'deployment'
+      }
+    ]
+  });
+  const empty = withVacancy.parse({ vacancy: [{ id: 'vac-1' }] });
+  const finding = only(empty.findings);
+  assert(
+    'V12: a vacancy with no source is refused',
+    !!finding && finding.rule === 'V12',
+    JSON.stringify(empty.findings)
+  );
+  const registered = withVacancy.parse(
+    { vacancy: [{ id: 'vac-1' }] },
+    {
+      sourceExceptions: new Map([
+        ['vacancy:vac-1', { rule: 'no-source', expires: '2026-12-01', reason: 'the gazette issue is on order' }]
+      ]),
+      basisOverrides: new Map()
+    }
+  );
+  assert(
+    'V12: the register entry lets the same vacancy parse',
+    registered.findings.length === 0 && registered.records.vacancy.length === 1,
+    JSON.stringify(registered.findings)
+  );
+  assert(
+    'the required kinds number fourteen and include the vacancy',
+    withVacancy.envelope.requiredSourceKinds.size === 14 && withVacancy.envelope.requiredSourceKinds.has('vacancy')
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// The consumer's register hands over its two fields unchanged
+// ---------------------------------------------------------------------------------------------
+
+{
+  // The two-field shape a consumer configures once and hands to every schema:
+  // same set names, same key formats, no configure call, nothing remembered.
+  const handed = {
+    emptySources: new Set(['position:pos-30']),
+    basisOverrides: new Set(['position:pos-31:reported>documented'])
+  };
+  const schema = withClaimEnvelope('position', positionSchema, handed);
+  assert('a handed-over empty-sources key silences its record', schema.safeParse({ id: 'pos-30' }).success);
+  assert(
+    'a handed-over override key silences its record',
+    schema.safeParse({ id: 'pos-31', sources: ['s-1'], confidence: 'B', basis: 'documented' }).success
+  );
+  const fresh = withClaimEnvelope('position', positionSchema);
+  assert('a schema built beside the handover sees no register', !fresh.safeParse({ id: 'pos-30' }).success);
+  assert(
+    'the parse path still refuses the same record',
+    claims.parse({ position: [{ id: 'pos-30' }] }).findings.length === 1
+  );
 }
 
 // ---------------------------------------------------------------------------------------------

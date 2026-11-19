@@ -101,6 +101,23 @@ assert(
     engineLater.envelope.reviewOverclaims('tribune verified', ['s-1']) === false
 );
 
+// Two engines, one process: each review schema knows its own labels. A
+// reviewer label is a deployment's named pass, so one deployment's pass must
+// not sign another deployment's reviews.
+const signedGazette = createEngine({ ...ruritania, reviewerLabels: ['Gazette verification pass'] });
+const signedArchive = createEngine({ ...ruritania, reviewerLabels: ['Archive verification pass'] });
+const signed = { date: '2026-09-10', method: 'source-check' as const };
+assert(
+  'each engine signs its own reviewer label',
+  signedGazette.envelope.ReviewSchema.safeParse({ by: 'Gazette verification pass', ...signed }).success &&
+    signedArchive.envelope.ReviewSchema.safeParse({ by: 'Archive verification pass', ...signed }).success
+);
+assert(
+  "one engine's reviewer label does not sign the other's reviews",
+  !signedGazette.envelope.ReviewSchema.safeParse({ by: 'Archive verification pass', ...signed }).success &&
+    !signedArchive.envelope.ReviewSchema.safeParse({ by: 'Gazette verification pass', ...signed }).success
+);
+
 // The observation predicate is cutoff-bound, day after day.
 const after = engineLater.time.resolveInterval('2020-01-01', '2020-12-31');
 assert(
