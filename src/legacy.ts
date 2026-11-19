@@ -30,7 +30,12 @@ export const legacyDeployment: Deployment = {
     ...atlasDefaults.vocabulary,
     regionKinds: ['province']
   },
-  matcher: { particles: [], functionWords: [], splittablePrefixes: [] }
+  matcher: {
+    particles: ['ben', 'el', 'al', 'bin', 'bint'],
+    functionWords: ['of', 'the', 'de', 'du', 'des'],
+    splittablePrefixes: ['ben', 'el'],
+    surnameHeads: ['ben', 'el', 'al']
+  }
 };
 
 export const legacyEngine = createEngine(legacyDeployment);

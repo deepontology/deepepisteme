@@ -46,12 +46,18 @@ export const ruritania: Deployment = {
     regionKinds: ['province']
   },
 
-  // Word lists for the name matcher (slice 5). Ruritania's names follow the
-  // same particle patterns the matcher already splits.
+  // The name matcher's word lists: Ruritania's own naming conventions. A
+  // fork replaces these with its country's particles and grammatical words;
+  // the matcher itself is engine code reached as engine.match.
   matcher: {
-    particles: ['Ben', 'El', 'Al'],
-    functionWords: ['of', 'the', 'de', 'du', 'des', 'bin', 'bint'],
-    splittablePrefixes: ['Ben']
+    // Nasab particles: never a match alone, but they carry weight in a phrase.
+    particles: ['ben', 'el', 'al', 'bin', 'bint'],
+    // Grammatical words that narrow nothing.
+    functionWords: ['of', 'the', 'de', 'du', 'des'],
+    // Surnames written as one word after these are split back apart.
+    splittablePrefixes: ['ben', 'el'],
+    // A surname block extends leftwards through these.
+    surnameHeads: ['ben', 'el', 'al']
   }
 };
 
