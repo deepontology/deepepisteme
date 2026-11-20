@@ -19,7 +19,14 @@
 
 import { z } from 'zod';
 import { Basis, Confidence, Verification } from './basis.ts';
-import { SCHEMA_RULE, SourceRelation, nonBlank, slug, withClaimEnvelope } from './envelope.ts';
+import {
+  SCHEMA_RULE,
+  SourceRelation,
+  type EnvelopeTexts,
+  nonBlank,
+  slug,
+  withClaimEnvelope
+} from './envelope.ts';
 import { DisputeSchema, type ReviewSchema } from './review.ts';
 import { TranslatedBy } from './translation.ts';
 
@@ -33,7 +40,9 @@ export interface KindLiterals {
   readonly review: ReviewSchema;
 }
 
-/** One record kind: what it is called, what file holds it, and its schema. */
+/**
+ * One record kind: what it is called, what file holds it, and its schema.
+ */
 export interface KindDefinition {
   kind: string;
   file: string;
@@ -46,6 +55,14 @@ export interface KindDefinition {
   schema: z.ZodType;
   bearsClaims: boolean;
   layer: 'kernel' | 'atlas' | 'deployment';
+  /**
+   * Refinements a kind chains AFTER the claim envelope, in the order its
+   * records have always published them. The envelope's own checks come first,
+   * so the issue lists a kind's broken records produce keep the order a
+   * consumer's own schema has always produced. Optional, and used only by the
+   * kinds whose schema carries refinements of its own.
+   */
+  afterEnvelope?: (schema: z.ZodType) => z.ZodType;
 }
 
 /** The kinds this slice registers, in the order parse() returns them. */
@@ -54,7 +71,8 @@ export const KERNEL_KIND_NAMES = ['source', 'question', 'hypothesis', 'verificat
 /** The rule id the ported kind schemas cite where their source names one. */
 const EVIDENCE_RULE = 'V29';
 
-function translatable(
+/** The `name_fr` / `name_ar` / `name_by` siblings for one prose field, per locale list. */
+export function translatable(
   name: string,
   locales: readonly string[],
   kind: 'string' | 'list' = 'string'
@@ -67,6 +85,26 @@ function translatable(
     ])
   );
 }
+
+/**
+ * A date token as the interval resolver reads one: YYYY, YYYY-MM or
+ * YYYY-MM-DD, the ~, <= and >= prefixed forms, ?, ongoing, or a verified:
+ * observation. Every dated record kind validates its dates with this one
+ * grammar, so the resolver and the schemas cannot disagree about what a
+ * record may say (V21).
+ */
+export const dateToken = z
+  .string()
+  .regex(
+    /^(?:~|<=|>=)?\d{4}(?:-\d{2}(?:-\d{2})?)?$|^(?:\?|ongoing|verified:\d{4}(?:-\d{2}(?:-\d{2})?)?)$/,
+    'date token must be YYYY, YYYY-MM, YYYY-MM-DD, ~YYYY[-MM], <=YYYY[-MM], >=YYYY[-MM], ?, ongoing, or verified:YYYY-MM[-DD] (V21)'
+  );
+
+/** A record's own start and end, when it carries an interval rather than one. */
+export const intervalSpec = z.strictObject({
+  start: dateToken.optional(),
+  end: dateToken.optional()
+});
 
 /**
  * A registered snapshot, not a lookup. Only archive URLs are checked, because
@@ -169,13 +207,13 @@ export function questionSchema(literals: KindLiterals) {
 // ---------------------------------------------------------------------------------------------
 
 /** The two axes that make the source relationship explicit on a claim. */
-const claimAxes = {
+export const claimAxes = {
   source_relation: SourceRelation.optional(),
   independence: z.number().int().min(1).optional()
 };
 
-/** The claim envelope's fields, shared by a hypothesis's evidence findings. */
-function claimFields(review: ReviewSchema) {
+/** The claim envelope's fields, shared by every kind that composes them wholesale. */
+export function claimFields(review: ReviewSchema) {
   return {
     confidence: Confidence.default('B'),
     basis: Basis.optional(),
@@ -319,11 +357,18 @@ export function objectSchemaOf(def: KindDefinition): z.ZodObject<z.ZodRawShape> 
   return def.schema;
 }
 
-/** Close a claim-bearing kind's schema over one call's exception sets. */
+/**
+ * Close a claim-bearing kind's schema over one call's exception sets, then the
+ * texts the finding messages carry (a deployment's register name and rule id),
+ * then any refinements the kind chains after the envelope.
+ */
 export function envelopedSchema(
   def: KindDefinition,
-  exceptions: Parameters<typeof withClaimEnvelope>[2]
+  exceptions: Parameters<typeof withClaimEnvelope>[2],
+  texts?: EnvelopeTexts
 ): z.ZodType {
-  if (!def.bearsClaims) return def.schema;
-  return withClaimEnvelope(def.kind, objectSchemaOf(def), exceptions);
+  const wrapped = def.bearsClaims
+    ? withClaimEnvelope(def.kind, objectSchemaOf(def), exceptions, texts)
+    : def.schema;
+  return def.afterEnvelope ? def.afterEnvelope(wrapped) : wrapped;
 }

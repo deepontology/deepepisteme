@@ -43,7 +43,10 @@ export const ruritania: Deployment = {
   vocabulary: {
     ...atlasDefaults.vocabulary,
     // The administrative ladder is the deployment's: Ruritania has provinces.
-    regionKinds: ['province']
+    regionKinds: ['province'],
+    // And the deployment may extend a default list: the example data's
+    // university needs a type the default vocabulary does not carry.
+    institutionTypes: [...atlasDefaults.vocabulary.institutionTypes, 'university']
   },
 
   // The name matcher's word lists: Ruritania's own naming conventions. A

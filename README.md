@@ -20,8 +20,9 @@ compile time, rather than at reading time.
 | Module | What it does |
 |---|---|
 | `src/engine.ts` | `createEngine(deployment)`, the 1.0 entry point: validates a deployment and returns its time model, envelope helpers, the kind register, the rule register, `parse()`, the canonical projection, splicer and `match()` |
-| `src/kernel/` | The layers true of any evidence-graded corpus: `kernel/time.ts` (`createTime`, the interval resolver), the basis ladder, reviews and disputes, the claim envelope, the exception register, `kernel/kinds.ts` (the source, question, hypothesis and verification kinds), `kernel/rules.ts` (findings and rules V12, V25, V27), `kernel/canonical.ts` (the stable projection and the dataset hash), `kernel/splicer.ts` (the single-region YAML splicer). No country, no module state |
-| `src/claim.ts` | Record schemas built on the evidence envelope; the envelope itself now lives in `src/kernel/` and is re-exported here |
+| `src/kernel/` | The layers true of any evidence-graded corpus: `kernel/time.ts` (`createTime`, the interval resolver), the basis ladder, reviews and disputes, the claim envelope, the exception register, `kernel/kinds.ts` (the source, question, hypothesis and verification kinds, and the shared date-token grammar), `kernel/evidence.ts` (claim-level evidence passages), `kernel/rules.ts` (findings and rules V12, V25, V27), `kernel/canonical.ts` (the stable projection and the dataset hash), `kernel/splicer.ts` (the single-region YAML splicer). No country, no module state |
+| `src/atlas/` | The record kinds of a map of power: `atlas/vocabulary.ts` (the default vocabulary a deployment extends or trims), `atlas/kinds/` (institution, role, person, position, relationship, event, era — one file per kind, claim-bearing kinds declared as their plain object schema with the envelope applied per parse call), `atlas/match.ts` (the deterministic entity linker, `engine.match`) |
+| `src/claim.ts` | The v0.1 names over the atlas kinds: the seven power-map schemas are re-exported from `src/atlas/kinds/`, wrapped with the v0.1 exception getter |
 | `src/time.ts` | v0.1 path to the interval resolver: `src/kernel/time.ts` holds `createTime(parameters)`; this module delegates to one Time object |
 | `src/config.ts` | `ParametersSchema` — **the fork point**. One YAML file retargets the whole engine |
 | `src/validate.ts` | Composable validator passes (`passReferential`, `passUnmooredInfluence`, `passDirection`, `passReviewOverclaim`, …) |
@@ -45,6 +46,10 @@ exercises every layer of the engine:
   verifications, in `examples/ruritania/data/`, parsed by the engine's own
   kinds
 
+The example deployment directory `examples/ruritania/` also carries a few
+records of every atlas kind under `data/`, so `npm run check:example` parses
+the whole deployment through the engine's kind register.
+
 It exists to prove portability: the example compiles from its own data
 directory, with its own parameters, through the same validators Tunisia uses.
 
@@ -52,9 +57,10 @@ directory, with its own parameters, through the same validators Tunisia uses.
 
 ```bash
 npm ci
-npm run data   # build src/generated/dataset.json + static/dataset.json
-npm run test   # gate: layers, kinds, rules, canonical hash, splicer, two engines, intervals, counts, envelope, matcher behavior, matcher gate
-npm run check  # tsc --noEmit
+npm run data            # build src/generated/dataset.json + static/dataset.json
+npm test                # gate: layers, kinds, atlas kinds, rules, canonical hash, splicer, two engines, intervals, counts, envelope, matcher behavior, matcher gate
+npm run check           # tsc --noEmit
+npm run check:example   # parse the Ruritania deployment directory through the engine
 ```
 
 All three are green on a fresh clone.

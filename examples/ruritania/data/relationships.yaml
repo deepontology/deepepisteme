@@ -1,0 +1,40 @@
+# Ruritania — relationships: the edges. One allegation carries a source
+# (an allegation without one is a build failure), one influence edge states
+# its reasoning (V9).
+
+- id: rel-varn-appoints-tell
+  from: elena-varn
+  to: marco-tell
+  type: appointment
+  description: "Varn appointed Tell deputy minister of infrastructure."
+  confidence: B
+  sources: [herald-ruritania-2024-03-10]
+
+- id: rel-kern-alliance-varn
+  from: sofia-kern
+  to: elena-varn
+  type: political-alliance
+  description: "The Union Party endorsed Varn's infrastructure programme in 2023."
+  confidence: B
+  sources: [herald-ruritania-2024-03-10]
+
+- id: rel-voss-advises-varn
+  from: iren-voss
+  to: elena-varn
+  type: reported-influence
+  description: "The Valley Observer reports Voss informally advised Varn on the 2024 concession."
+  confidence: C
+  attributed_to: "Valley Observer (regional outlet, single source)"
+  reasoning: "The profile asserts the advisory role; it tracks Voss's business ties and is consistent with the concession timeline."
+  falsifiable_by: "A ministry statement denying the advisory role would refute this."
+  influence: { channel: advice-relationship, strength: 0.6 }
+  sources: [valley-observer-2023-11-02]
+
+- id: rel-allegation-voss-contract
+  from: iren-voss
+  to: marco-tell
+  type: allegation
+  description: "A circulating accusation that Voss paid Tell for contract details; no court record exists."
+  confidence: D
+  attributed_to: "An anonymous account on a regional forum"
+  sources: [valley-observer-2023-11-02]

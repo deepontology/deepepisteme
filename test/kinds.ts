@@ -44,18 +44,25 @@ const engine = createEngine(ruritania);
 // The register of kinds
 // ---------------------------------------------------------------------------------------------
 
-assert('kinds holds the four kernel kinds', engine.kinds.size === 4, [...engine.kinds.keys()].join(','));
+assert('kinds holds the kernel kinds and the ported atlas kinds', engine.kinds.size === 11, [...engine.kinds.keys()].join(','));
 assert(
   'the kinds are named in parse order',
-  [...engine.kinds.keys()].join(',') === 'source,question,hypothesis,verification'
+  [...engine.kinds.keys()].join(',') ===
+    'source,question,hypothesis,verification,institution,role,person,position,relationship,event,era'
 );
 assert(
-  'every registered kind is a kernel kind with a file',
-  [...engine.kinds.values()].every((d) => d.layer === 'kernel' && d.file.endsWith('.yaml'))
+  'every registered kind has a file and a layer',
+  [...engine.kinds.values()].every(
+    (d) => d.file.endsWith('.yaml') && ['kernel', 'atlas', 'deployment'].includes(d.layer)
+  )
 );
 assert(
-  'no kernel kind bears claims in this slice',
-  [...engine.kinds.values()].every((d) => d.bearsClaims === false)
+  'the kernel kinds are the first four and none of them bears claims',
+  [...engine.kinds.values()].slice(0, 4).every((d) => d.layer === 'kernel' && d.bearsClaims === false)
+);
+assert(
+  'the atlas kinds follow the kernel kinds',
+  [...engine.kinds.values()].slice(4).every((d) => d.layer === 'atlas' && d.file.endsWith('.yaml'))
 );
 assert(
   'the verification enum takes the release form, with the new default first',
@@ -101,7 +108,7 @@ assert(
   );
   assert(
     'every registered kind is present even when the dataset is empty',
-    engine.parse({}).records.source.length === 0 && Object.keys(engine.parse({}).records).length === 4
+    engine.parse({}).records.source.length === 0 && Object.keys(engine.parse({}).records).length === 11
   );
 }
 

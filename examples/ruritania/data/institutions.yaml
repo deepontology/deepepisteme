@@ -1,0 +1,40 @@
+# Ruritania — institutions. Synthetic example data, not a real country.
+# The deployment's institution vocabulary is the atlas default list extended
+# with 'university' (examples/ruritania/deployment.ts).
+
+- id: ministry-infrastructure
+  name_en: Ministry of Infrastructure
+  name_fr: Ministère des Infrastructures
+  abbr: MOI
+  type: ministry
+  layer: political
+  parent: null
+  active: { start: "1991-01-01" }
+  order: 10
+  summary: "Cabinet ministry responsible for transport and public works."
+  confidence: A
+  sources: [gazette-2022-decree-44]
+
+- id: union-party
+  name_en: Union Party
+  abbr: UP
+  type: party
+  layer: political
+  parent: null
+  active: { start: "2004-06-01" }
+  order: 20
+  summary: "Parliamentary party founded in 2004, centre-right."
+  confidence: B
+  sources: [herald-ruritania-2024-03-10]
+
+- id: midland-university
+  name_en: Midland University
+  abbr: MU
+  type: university
+  layer: civil
+  parent: null
+  active: { start: "1962-09-01" }
+  order: 30
+  summary: "Public university in central Ruritania, founded 1962."
+  confidence: A
+  sources: [ruritania-statistical-office-2023]
