@@ -94,6 +94,8 @@ this table does not run in the engine.
 | V8 | A cause cannot begin after its consequence, and a causal cycle fails |
 | V3 | Company registration numbers are valid and unique |
 | V11 | Events with no participants, organisations or documents are orphaned |
+| V1 | Direct ownership shares into one entity sum to 100 percent or less at any instant |
+| V7 | A person on two board edges into different entities over the same period is flagged |
 
 ## The claim envelope
 

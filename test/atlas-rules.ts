@@ -13,7 +13,7 @@
 import { createEngine, type ParsedDataset, type RawDataset } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
 import { NO_EXCEPTIONS } from '../src/kernel/exceptions.ts';
-import { V3, V4, V10, V11, V16, V17, V8 } from '../src/atlas/rules/index.ts';
+import { V1, V3, V4, V7, V10, V11, V16, V17, V8 } from '../src/atlas/rules/index.ts';
 import type { RuleContext } from '../src/kernel/rules.ts';
 
 let failures = 0;
@@ -63,7 +63,7 @@ const sources = [
 // The register
 // ---------------------------------------------------------------------------------------------
 
-assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11');
+assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7');
 assert('V3 is an atlas rule that errors', V3.layer === 'atlas' && V3.severity === 'error');
 assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.covers?.join(',') === 'V5');
 assert(
@@ -369,6 +369,88 @@ assert(
   assert('V11: materials do not count as documents', run([{ ...orphan, materials: ['gazette-2024-decree-11'] }]).length === 1);
   assert('V11: an event whose fields were never written is still orphaned', run([{ id: 'ev-bare' }]).length === 1);
   assert('V11: only the orphan is named among several', run([orphan, withActor]).map((f) => f.record?.id).join(',') === 'ev-orphan');
+}
+
+// ---------------------------------------------------------------------------------------------
+// V1: direct ownership shares into one entity sum to 100 percent or less
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: no pipeline fixture; the real data holds 29 direct percentage edges and none over 100.
+{
+  const stake = (id: string, from: string, pct: number, start: string, end: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    from,
+    to: 'co-ruria-mill',
+    type: 'ownership',
+    start,
+    end,
+    equity: { pct, direct: true },
+    description: 'A recorded stake in the mill.',
+    confidence: 'B',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const run = (relationships: unknown[]) => V1.run(resolvedContext({ source: sources, relationship: relationships }));
+  const a = stake('own-ruria-a', 'org-a', 60, '2000', '2010');
+  const b = stake('own-ruria-b', 'org-b', 50, '2005', '2008');
+
+  const over = run([a, b]);
+  assert('V1: two direct stakes that together exceed 100 fail once', over.length === 1 && over[0].severity === 'error' && over[0].rule === 'V1', JSON.stringify(over));
+  assert('V1: the finding names the edge that pushes the sum past 100', over[0].record?.kind === 'relationship' && over[0].record?.id === 'own-ruria-b');
+  assert('V1: the message names the entity, the sum and every stake in it', /co-ruria-mill sums to 110% on 2005-12-31/.test(over[0].message) && /own-ruria-a 60%/.test(over[0].message) && /own-ruria-b 50%/.test(over[0].message), over[0].message);
+
+  assert('V1: the control differs by one percentage alone', run([a, stake('own-ruria-b', 'org-b', 40, '2005', '2008')]).length === 0);
+  assert('V1: exactly 100 passes', run([a, stake('own-ruria-b', 'org-b', 40.0, '2005', '2008')]).length === 0);
+  assert('V1: stakes that do not overlap in time pass', run([a, stake('own-ruria-b', 'org-b', 50, '2012', '2015')]).length === 0);
+  assert('V1: a handover on one day is not an overlap', run([stake('own-ruria-a', 'org-a', 100, '2000', '2010-05-01'), stake('own-ruria-b', 'org-b', 100, '2010-05-01', '2015')]).length === 0);
+  assert('V1: a look-through edge restates a stake already counted', run([a, stake('own-ruria-b', 'org-b', 50, '2005', '2008', { equity: { pct: 50, direct: false, beneficial: true } })]).length === 0);
+  assert('V1: an edge merged into another is not a claim of its own', run([a, stake('own-ruria-b', 'org-b', 50, '2005', '2008', { merged_into: 'own-ruria-a' })]).length === 0);
+  assert('V1: an edge superseded by another is not a claim of its own', run([a, stake('own-ruria-b', 'org-b', 50, '2005', '2008'), stake('own-ruria-c', 'org-b', 30, '2005', '2008', { supersedes: 'own-ruria-b' })]).length === 0);
+  assert('V1: stakes into different entities are summed apart', run([a, stake('own-ruria-b', 'org-b', 50, '2005', '2008', { to: 'co-ruria-other' })]).length === 0);
+  assert('V1: an edge with no percentage is not counted', run([a, stake('own-ruria-b', 'org-b', 50, '2005', '2008', { equity: undefined })]).length === 0);
+  assert('V1: a family edge is not an ownership edge', run([a, stake('own-ruria-b', 'org-b', 50, '2005', '2008', { type: 'family' })]).length === 0);
+  assert(
+    'V1: three stakes are judged at the instant they all hold',
+    run([stake('own-ruria-a', 'org-a', 40, '2000', '2010'), stake('own-ruria-b', 'org-b', 40, '2004', '2010'), stake('own-ruria-c', 'org-c', 30, '2006', '2010')]).map((f) => f.record?.id).join(',') === 'own-ruria-c'
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// V7: a person on two boards at once
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: no pipeline fixture; the real data holds 59 board edges and no person on two.
+{
+  const seat = (id: string, to: string, start: string, end: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    from: 'p-ruria-dar',
+    to,
+    type: 'board',
+    start,
+    end,
+    description: 'A seat on a board.',
+    confidence: 'B',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const director = { id: 'p-ruria-dar', name_en: 'Dar Ruria', layers: ['political'], tagline: 'A director', summary: 'Sits on boards.', confidence: 'B', sources: ['s-journalism'] };
+  const run = (relationships: unknown[]) =>
+    V7.run(resolvedContext({ source: sources, person: [director], relationship: relationships } as RawDataset));
+  const a = seat('brd-ruria-a', 'co-ruria-mill', '2000', '2010');
+  const b = seat('brd-ruria-b', 'co-ruria-bank', '2005', '2012');
+
+  const both = run([a, b]);
+  assert('V7: two overlapping seats on different boards are flagged once', both.length === 1 && both[0].severity === 'warning' && both[0].rule === 'V7', JSON.stringify(both));
+  assert('V7: the finding names the seat authored second', both[0].record?.kind === 'relationship' && both[0].record?.id === 'brd-ruria-b');
+  assert('V7: the message names the person and both boards', /p-ruria-dar sits on the board of co-ruria-bank while on the board of co-ruria-mill \(brd-ruria-a\)/.test(both[0].message), both[0].message);
+
+  assert('V7: the control differs by dates alone', run([a, seat('brd-ruria-b', 'co-ruria-bank', '2011', '2012')]).length === 0);
+  assert('V7: a handover on one day is not an overlap', run([seat('brd-ruria-a', 'co-ruria-mill', '2000', '2010-05-01'), seat('brd-ruria-b', 'co-ruria-bank', '2010-05-01', '2012')]).length === 0);
+  assert('V7: two edges into one board are one seat held twice', run([a, seat('brd-ruria-b', 'co-ruria-mill', '2005', '2012')]).length === 0);
+  assert('V7: a seat merged into another is not a claim of its own', run([a, { ...b, merged_into: 'brd-ruria-a' }]).length === 0);
+  assert('V7: a seat superseded by another is not a claim of its own', run([a, b, seat('brd-ruria-c', 'co-ruria-bank', '2005', '2012', { supersedes: 'brd-ruria-a' })]).length === 0);
+  assert('V7: a family edge is not a seat', run([a, { ...b, type: 'family' }]).length === 0);
+  assert('V7: three overlapping seats make three pairs', run([a, b, seat('brd-ruria-c', 'co-ruria-port', '2006', '2009')]).length === 3);
 }
 
 // ---------------------------------------------------------------------------------------------
