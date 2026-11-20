@@ -36,6 +36,7 @@ import {
   nonBlank,
   slug,
   withClaimEnvelope as envelopeBuilder,
+  type EnvelopeTexts,
   type ExceptionSource
 } from './kernel/envelope.ts';
 import {
@@ -69,6 +70,7 @@ import {
 import { createSplicer, type Splicer } from './kernel/splicer.ts';
 import { hash as canonicalHash, project as canonicalProject, type CanonicalOptions } from './kernel/canonical.ts';
 import { createMatcher, type MatchEntity, type Matcher, type MatcherOptions } from './atlas/match.ts';
+import { createAtlasKinds, type AtlasLiterals } from './atlas/kinds/index.ts';
 
 export type { ResolvedInterval, Time, TimeParameters };
 export type { BasisValue, ConfidenceValue, VerificationValue };
@@ -143,6 +145,15 @@ export interface Deployment {
 
   /** Labels a review may be signed with, beyond a person's handle. */
   reviewerLabels: readonly string[];
+
+  /**
+   * The words an envelope finding carries that a deployment owns: where its
+   * escapes are registered (a published file name), and which rule id a
+   * basis-override finding names after the pair. A deployment that passes
+   * both gets its published message strings back; the defaults name a
+   * register and no rule, so the engine itself names no file.
+   */
+  envelopeTexts?: EnvelopeTexts;
 
   /** Scoring parameters used by derived indexes. */
   index: { discount: Record<BasisValue, number> };
@@ -300,6 +311,19 @@ function validateDeployment(d: Deployment): void {
     }
   }
 
+  if (d.envelopeTexts !== undefined) {
+    const texts = d.envelopeTexts as { exceptionFile?: unknown; basisOverrideRule?: unknown };
+    if (texts.exceptionFile !== undefined && (typeof texts.exceptionFile !== 'string' || !nonBlank(texts.exceptionFile))) {
+      throw new Error('deployment: envelopeTexts.exceptionFile must be a non-blank string when present');
+    }
+    if (
+      texts.basisOverrideRule !== undefined &&
+      (typeof texts.basisOverrideRule !== 'string' || !nonBlank(texts.basisOverrideRule))
+    ) {
+      throw new Error('deployment: envelopeTexts.basisOverrideRule must be a non-blank string when present');
+    }
+  }
+
   for (const basis of BASIS_VALUES) {
     const weight = d.index?.discount?.[basis];
     if (typeof weight !== 'number' || !(weight >= 0) || !(weight <= 1)) {
@@ -350,7 +374,26 @@ export function createEngine(deployment: Deployment): Engine {
     review
   };
 
-  const kinds: KindDefinition[] = [...createKernelKinds(literals), ...(deployment.extraKinds ?? [])];
+  /** The atlas kinds' literals: the vocabulary and the box are the deployment's. */
+  const atlasLiterals: AtlasLiterals = {
+    name: deployment.name,
+    translatedLocales: deployment.translatedLocales,
+    review,
+    institutionTypes: deployment.vocabulary.institutionTypes,
+    layers: deployment.vocabulary.layers,
+    relationshipTypes: deployment.vocabulary.relationshipTypes,
+    influenceChannels: deployment.vocabulary.influenceChannels,
+    agreementKinds: deployment.vocabulary.agreementKinds,
+    placeKinds: deployment.vocabulary.placeKinds,
+    registries: deployment.registry.registries,
+    bbox: deployment.bbox
+  };
+
+  const kinds: KindDefinition[] = [
+    ...createKernelKinds(literals),
+    ...createAtlasKinds(atlasLiterals),
+    ...(deployment.extraKinds ?? [])
+  ];
   const kindMap: ReadonlyMap<string, KindDefinition> = new Map(kinds.map((k) => [k.kind, k]));
   const claimKinds: ReadonlySet<string> = new Set(kinds.filter((k) => k.bearsClaims).map((k) => k.kind));
 
@@ -418,7 +461,7 @@ export function createEngine(deployment: Deployment): Engine {
         continue;
       }
 
-      const schema = envelopedSchema(def, exceptions);
+      const schema = envelopedSchema(def, exceptions, deployment.envelopeTexts);
       list.forEach((entry, index) => {
         const label = recordLabel(entry, index);
         const result = schema.safeParse(entry);

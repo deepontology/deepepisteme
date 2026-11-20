@@ -1,0 +1,43 @@
+# Synthetic jurisdiction: Ruritania — example sources (not real).
+# Tiers: 1=gazette/primary, 2=institutional research, 3=established journalism,
+#        4=regional media, 5=lead requiring corroboration.
+
+- id: gazette-2022-decree-44
+  title: "Ruritanian Gazette — Decree 44/2022 on ministerial appointments"
+  publisher: Ruritanian Gazette
+  date: "2022-03-15"
+  url: https://example.invalid/gazette/2022/decree-44
+  tier: 1
+  lang: en
+
+- id: ruritania-statistical-office-2023
+  title: "Statistical Yearbook 2023 — Ruritania"
+  publisher: Ruritanian Statistical Office
+  date: "2023-06-01"
+  url: https://example.invalid/rso/yearbook-2023
+  tier: 2
+  lang: en
+
+- id: herald-ruritania-2024-03-10
+  title: "Cabinet reshuffle announced — Ruritanian Herald"
+  publisher: Ruritanian Herald
+  date: "2024-03-10"
+  url: https://example.invalid/herald/2024-03-10/reshuffle
+  tier: 3
+  lang: en
+
+- id: valley-observer-2023-11-02
+  title: "The Valley Observer — profile of the Midland University rector"
+  publisher: Valley Observer
+  date: "2023-11-02"
+  url: https://example.invalid/valley-observer/2023-11-02/rector
+  tier: 4
+  lang: en
+
+- id: gazette-2024-decree-11
+  title: "Ruritanian Gazette — Decree 11/2024 on transport concessions"
+  publisher: Ruritanian Gazette
+  date: "2024-02-01"
+  url: https://example.invalid/gazette/2024/decree-11
+  tier: 1
+  lang: en

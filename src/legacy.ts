@@ -9,7 +9,9 @@
  * Its values are the Ruritania values (see examples/ruritania/deployment.ts;
  * test/engine.ts checks the two agree on everything these modules read).
  *
- * removed in slice 3
+ * Slice 3 moves the kinds this module's readers used into src/atlas/kinds/;
+ * the module itself stays while the v0.1 build and test gates still import
+ * it, and is removed when those gates move to createEngine.
  */
 
 import { createEngine, type Deployment } from './engine.ts';
@@ -28,7 +30,8 @@ export const legacyDeployment: Deployment = {
   index: DEFAULT_PARAMETERS.index,
   vocabulary: {
     ...atlasDefaults.vocabulary,
-    regionKinds: ['province']
+    regionKinds: ['province'],
+    institutionTypes: [...atlasDefaults.vocabulary.institutionTypes, 'university']
   },
   matcher: {
     particles: ['ben', 'el', 'al', 'bin', 'bint'],

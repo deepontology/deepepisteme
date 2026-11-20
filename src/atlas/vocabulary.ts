@@ -32,18 +32,31 @@ export const institutionTypes = [
   'ministry',
   'military',
   'police',
+  'gendarmerie',
+  'intelligence',
+  'presidential-security',
   'party',
   'company',
+  'family',
   'association',
   'media',
   'legislature',
   'judiciary',
+  'foreign-state',
+  'international-organisation',
+  'ngo',
   'bank',
   'state-enterprise',
   'holding',
-  'ngo',
+  'media-company',
+  'foundation',
   'regulator',
-  'university'
+  'sovereign-fund',
+  'cooperative',
+  'utility',
+  'port-authority',
+  // a caucus inside one legislative term; its parent is the term
+  'parliamentary-group'
 ] as const;
 
 export const relationshipTypes = [

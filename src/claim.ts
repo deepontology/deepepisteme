@@ -3,11 +3,13 @@
  *
  * The envelope itself (grades, basis, reviews, disputes, the exception sets)
  * and the power-map vocabulary live in kernel/ and atlas/. This module keeps
- * the old import path working for deeptunisia's scripts: it re-exports those
- * pieces and builds the record schemas from them. The exception sets it was
- * configured with are handed to the envelope as a live getter.
+ * the old import path working for the build and test gates that still import
+ * it: it re-exports those pieces and re-exports the seven power-map kinds
+ * from src/atlas/kinds/, wrapped with the exception getter this module has
+ * always held.
  *
- * removed in slice 3
+ * removed in slice 3 (the kinds already moved; the module stays while the
+ * v0.1 build and test gates still import it)
  */
 
 import { z } from 'zod';
@@ -38,6 +40,17 @@ import {
   type EdgeDirectionKind
 } from './atlas/vocabulary.ts';
 import { legacyEngine } from './legacy.ts';
+import {
+  eraSchema,
+  eventSchema,
+  institutionSchema,
+  personSchema,
+  positionSchema,
+  relationshipRefines,
+  relationshipSchema,
+  roleSchema,
+  type AtlasLiterals
+} from './atlas/kinds/index.ts';
 
 export {
   Basis,
@@ -113,253 +126,45 @@ export const SourceSchema = z.strictObject({
   ...translatable('title_gloss')
 });
 
-export const InstitutionSchema = withClaimEnvelope(
-  'institution',
-  z.strictObject({
-    id: slug,
-    name_en: z.string().min(2),
-    name_fr: z.string().optional(),
-    name_ar: z.string().optional(),
-    abbr: z.string().optional(),
-    aliases: z.array(z.string()).default([]),
-    notes: z.array(z.string()).default([]),
-    ...translatable('notes', 'list'),
-    type: InstitutionType,
-    layer: Layer,
-    parent: slug.nullable().default(null),
-    active: z.strictObject({ start: z.string().optional(), end: z.string().optional() }).default({}),
-    order: z.number().int().default(100),
-    summary: z.string().optional(),
-    confidence: Confidence.default('A'),
-    basis: Basis.optional(),
-    verification: Verification.default('verified'),
-    attributed_to: z.string().optional(),
-    reasoning: z.string().optional(),
-    falsifiable_by: z.string().optional(),
-    /** Why the authored basis overrides the grade-implied basis (V27). */
-    basis_override_reason: z.string().optional(),
-    sources: z.array(slug).default([]),
-    ...translatable('summary')
-  })
+// ---------------------------------------------------------------------------------------------
+// The seven power-map kinds. The schemas live in src/atlas/kinds/ now, built
+// from the same literals the engine's kind register builds them from; this
+// module only re-exports them under the v0.1 names with the v0.1 exception
+// getter, so the old import paths keep answering as before. The claim-bearing
+// ones are wrapped here because a module-level schema cannot be handed a
+// per-call register.
+// ---------------------------------------------------------------------------------------------
+
+/** The default engine's atlas literals, so these schemas and the register agree. */
+const atlasLiterals: AtlasLiterals = {
+  name: legacyEngine.deployment.name,
+  translatedLocales: TRANSLATED_LOCALES,
+  review: ReviewSchema,
+  institutionTypes: legacyEngine.deployment.vocabulary.institutionTypes,
+  layers: legacyEngine.deployment.vocabulary.layers,
+  relationshipTypes: legacyEngine.deployment.vocabulary.relationshipTypes,
+  influenceChannels: legacyEngine.deployment.vocabulary.influenceChannels,
+  agreementKinds: legacyEngine.deployment.vocabulary.agreementKinds,
+  placeKinds: legacyEngine.deployment.vocabulary.placeKinds,
+  registries: legacyEngine.deployment.registry.registries,
+  bbox: legacyEngine.deployment.bbox
+};
+
+export const InstitutionSchema = withClaimEnvelope('institution', institutionSchema(atlasLiterals));
+
+export const RoleSchema = roleSchema(atlasLiterals);
+
+export const PersonSchema = withClaimEnvelope('person', personSchema(atlasLiterals));
+
+export const PositionSchema = withClaimEnvelope('position', positionSchema(atlasLiterals));
+
+export const RelationshipSchema = relationshipRefines(
+  withClaimEnvelope('relationship', relationshipSchema(atlasLiterals))
 );
 
-export const RoleSchema = z.object({
-  id: slug,
-  title_en: z.string().min(2),
-  title_fr: z.string().optional(),
-  title_ar: z.string().optional(),
-  institution: slug,
-  authority: z.number().min(0).max(100),
-  row: slug.optional(),
-  summary: z.string().optional(),
-  sources: z.array(slug).default([]),
-  ...translatable('summary')
-});
+export const EventSchema = withClaimEnvelope('event', eventSchema(atlasLiterals));
 
-export const PersonSchema = withClaimEnvelope(
-  'person',
-  z.strictObject({
-    id: slug,
-    name_en: z.string().min(2),
-    name_fr: z.string().optional(),
-    name_ar: z.string().optional(),
-    aliases: z.array(z.string()).default([]),
-    birth: z.string().optional(),
-    death: z.string().optional(),
-    birthplace: slug.optional(),
-    nationality: z.array(z.string().regex(/^[A-Z]{2}$/)).default([]),
-    layers: z.array(Layer).min(1),
-    tagline: z.string().optional(),
-    summary: z.string().optional(),
-    trajectory: z.array(z.string()).default([]),
-    confidence: Confidence.default('B'),
-    basis: Basis.optional(),
-    verification: Verification.default('verified'),
-    attributed_to: z.string().optional(),
-    reasoning: z.string().optional(),
-    falsifiable_by: z.string().optional(),
-    /** Why the authored basis overrides the grade-implied basis (V27). */
-    basis_override_reason: z.string().optional(),
-    disputes: z.array(DisputeSchema).default([]),
-    review: ReviewSchema.optional(),
-    notes: z.array(z.string()).default([]),
-    sources: z.array(slug).default([]),
-    ...translatable('tagline'),
-    ...translatable('summary'),
-    ...translatable('trajectory', 'list'),
-    ...translatable('notes', 'list'),
-    ...translatable('reasoning'),
-    ...translatable('falsifiable_by')
-  })
-);
-
-const dateToken = z
-  .string()
-  .regex(
-    /^(?:~|<=|>=)?\d{4}(?:-\d{2}(?:-\d{2})?)?$|^(?:\?|ongoing|verified:\d{4}(?:-\d{2}(?:-\d{2})?)?)$/,
-    'date token must be YYYY, YYYY-MM, YYYY-MM-DD, ~YYYY[-MM], <=YYYY[-MM], >=YYYY[-MM], ?, ongoing, or verified:...'
-  );
-
-export const PositionSchema = withClaimEnvelope(
-  'position',
-  z.strictObject({
-    id: slug,
-    role: slug,
-    holder: slug,
-    start: dateToken.optional(),
-    end: dateToken.optional(),
-    acting: z.boolean().default(false),
-    predecessor: slug.nullable().optional(),
-    supersedes: slug.optional(),
-    confidence: Confidence.default('B'),
-    basis: Basis.optional(),
-    verification: Verification.default('verified'),
-    attributed_to: z.string().optional(),
-    reasoning: z.string().optional(),
-    falsifiable_by: z.string().optional(),
-    /** Why the authored basis overrides the grade-implied basis (V27). */
-    basis_override_reason: z.string().optional(),
-    disputes: z.array(DisputeSchema).default([]),
-    merged_into: slug.optional(),
-    review: ReviewSchema.optional(),
-    notes: z.array(z.string()).default([]),
-    sources: z.array(slug).min(1, 'every position needs at least one source'),
-    ...translatable('reasoning'),
-    ...translatable('falsifiable_by'),
-    ...translatable('notes', 'list')
-  })
-);
-
-export const RelationshipSchema = withClaimEnvelope(
-  'relationship',
-  z.strictObject({
-    id: slug,
-    from: slug,
-    to: slug,
-    type: RelationshipType,
-    subtype: z.string().optional(),
-    start: dateToken.optional(),
-    end: dateToken.optional(),
-    description: z.string().min(4),
-    confidence: Confidence,
-    basis: Basis.optional(),
-    verification: Verification.default('verified'),
-    attributed_to: z.string().optional(),
-    reasoning: z.string().optional(),
-    falsifiable_by: z.string().optional(),
-    /** Why the authored basis overrides the grade-implied basis (V27). */
-    basis_override_reason: z.string().optional(),
-    disputes: z.array(DisputeSchema).default([]),
-    merged_into: slug.optional(),
-    supersedes: slug.optional(),
-    review: ReviewSchema.optional(),
-    sources: z.array(slug).default([]),
-    ...translatable('description'),
-    ...translatable('reasoning'),
-    ...translatable('falsifiable_by'),
-    notes: z.array(z.string()).default([]),
-    ...translatable('notes', 'list'),
-    equity: z
-      .strictObject({
-        pct: z.number().min(0).max(100),
-        direct: z.boolean().default(true),
-        beneficial: z.boolean().default(false),
-        class: z.string().optional()
-      })
-      .optional(),
-    finance: z
-      .strictObject({
-        amount: z.number().nonnegative(),
-        currency: z.string().regex(/^[A-Z]{3}$/),
-        year: z.number().int().min(1900).max(2030)
-      })
-      .optional(),
-    influence: z
-      .strictObject({ channel: z.enum(INFLUENCE_CHANNELS), strength: z.number().min(0.3).max(1) })
-      .optional()
-  })
-)
-  .refine((r) => !(r.type === 'allegation' && r.sources.length === 0), {
-    message: 'an allegation must carry a source'
-  })
-  .refine((r) => !r.influence || ['influence', 'reported-influence', 'advisory'].includes(r.type), {
-    message: 'influence metadata only on influence-family edges'
-  })
-  .refine((r) => !(r.influence && !r.reasoning), {
-    message: 'influence strength must state its reasoning'
-  });
-
-export const EventSchema = withClaimEnvelope(
-  'event',
-  z.strictObject({
-    id: slug,
-    date: dateToken,
-    date_end: dateToken.optional(),
-    title_en: z.string().min(3),
-    title_fr: z.string().optional(),
-    title_ar: z.string().optional(),
-    category: z.enum([
-      'political',
-      'military',
-      'security',
-      'economic',
-      'constitutional',
-      'election',
-      'protest',
-      'legal',
-      'award',
-      'investigation',
-      'media'
-    ]),
-    subcategory: z.string().optional(),
-    location: z.array(slug).default([]),
-    impact: z.strictObject({ layer: z.array(Layer).default([]) }).optional(),
-    documents: z.array(z.string()).default([]),
-    materials: z.array(z.string()).default([]),
-    causes: z.array(slug).default([]),
-    consequences: z.array(slug).default([]),
-    rupture: z.boolean().default(false),
-    summary: z.string().min(10),
-    actors: z.array(slug).default([]),
-    institutions: z.array(slug).default([]),
-    confidence: Confidence.default('A'),
-    basis: Basis.optional(),
-    verification: Verification.default('verified'),
-    attributed_to: z.string().optional(),
-    reasoning: z.string().optional(),
-    falsifiable_by: z.string().optional(),
-    /** Why the authored basis overrides the grade-implied basis (V27). */
-    basis_override_reason: z.string().optional(),
-    contested: z.array(
-      z.strictObject({ framing: z.string(), held_by: z.string(), source: slug.optional() })
-    ).default([]),
-    disputes: z.array(DisputeSchema).default([]),
-    review: ReviewSchema.optional(),
-    sources: z.array(slug).min(1, 'every event needs at least one source'),
-    ...translatable('summary')
-  })
-);
-
-export const EraSchema = z.object({
-  id: slug,
-  label_en: z.string().min(2),
-  label_fr: z.string().optional(),
-  label_ar: z.string().optional(),
-  start: dateToken,
-  end: dateToken,
-  thesis: z.string().min(10),
-  formula: z.string().optional(),
-  accent: z.string().regex(/^#[0-9a-f]{6}$/i),
-  sources: z.array(slug).default([]),
-  confidence: Confidence.optional(),
-  verification: Verification.optional(),
-  attributed_to: z.string().optional(),
-  reasoning: z.string().optional(),
-  falsifiable_by: z.string().optional(),
-  ...translatable('thesis'),
-  ...translatable('reasoning'),
-  ...translatable('falsifiable_by')
-});
+export const EraSchema = eraSchema(atlasLiterals);
 
 export type Source = z.infer<typeof SourceSchema>;
 export type Institution = z.infer<typeof InstitutionSchema>;

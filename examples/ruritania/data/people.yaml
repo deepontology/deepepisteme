@@ -1,0 +1,38 @@
+# Ruritania — people. One record is deliberately grade C and attributed,
+# so the example exercises the envelope's attribution rule.
+
+- id: elena-varn
+  name_en: Elena Varn
+  layers: [political]
+  tagline: "Minister of Infrastructure (2022-2024)"
+  summary: "Career civil servant; appointed minister in March 2022."
+  confidence: A
+  sources: [gazette-2022-decree-44]
+
+- id: marco-tell
+  name_en: Marco Tell
+  aliases: ["M. Tell"]
+  layers: [political]
+  tagline: "Deputy Minister of Infrastructure"
+  summary: "Former railway engineer; deputy minister from 2022."
+  confidence: B
+  sources: [herald-ruritania-2024-03-10]
+
+- id: sofia-kern
+  name_en: Sofia Kern
+  layers: [political]
+  tagline: "Leader of the Union Party"
+  summary: "Elected party leader in January 2021; previously mayor of Rivertown."
+  confidence: B
+  sources: [herald-ruritania-2024-03-10]
+
+- id: iren-voss
+  name_en: Iren Voss
+  layers: [political, economic]
+  tagline: "Business figure, reported advisor to the ministry"
+  summary: "Reported to have advised the ministry on the 2024 concession; no primary record located."
+  confidence: C
+  attributed_to: "Valley Observer (regional outlet, single source)"
+  reasoning: "The November 2023 profile names Voss as an informal advisor, consistent with known business ties."
+  falsifiable_by: "A gazette decree listing formal advisors without Voss would refute this."
+  sources: [valley-observer-2023-11-02]
