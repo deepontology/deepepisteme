@@ -13,7 +13,7 @@
 import { createEngine, type ParsedDataset, type RawDataset } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
 import { NO_EXCEPTIONS } from '../src/kernel/exceptions.ts';
-import { V3, V4 } from '../src/atlas/rules/index.ts';
+import { V3, V4, V11 } from '../src/atlas/rules/index.ts';
 import type { RuleContext } from '../src/kernel/rules.ts';
 
 let failures = 0;
@@ -50,9 +50,10 @@ const sources = [
 // The register
 // ---------------------------------------------------------------------------------------------
 
-assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V3,V4');
+assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V3,V4,V11');
 assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.covers?.join(',') === 'V5');
 assert('V3 is an atlas rule that errors', V3.layer === 'atlas' && V3.severity === 'error');
+assert('V11 is an atlas rule that warns', V11.layer === 'atlas' && V11.severity === 'warning');
 
 // ---------------------------------------------------------------------------------------------
 // V3: company registration numbers are valid and unique
@@ -135,6 +136,30 @@ assert('V3 is an atlas rule that errors', V3.layer === 'atlas' && V3.severity ==
 }
 
 // ---------------------------------------------------------------------------------------------
+// V11: orphaned events
+// ---------------------------------------------------------------------------------------------
+
+{
+  const orphan = { id: 'ev-orphan', actors: [], institutions: [], documents: [] };
+  const withActor = { ...orphan, actors: ['elena-varn'] };
+
+  const run = (events: unknown[]) => V11.run(context({ event: events }));
+
+  const found = run([orphan]);
+  assert('V11: an event with no actors, institutions or documents is orphaned', found.length === 1, JSON.stringify(found));
+  assert(
+    'V11: the finding names the event and warns',
+    found[0].record?.kind === 'event' && found[0].record?.id === 'ev-orphan' && found[0].severity === 'warning'
+  );
+  assert('V11: the control differs by the actor alone', run([withActor]).length === 0);
+  assert('V11: institutions alone keep the event linked', run([{ ...orphan, institutions: ['ministry-infrastructure'] }]).length === 0);
+  assert('V11: documents alone keep the event linked', run([{ ...orphan, documents: ['gazette-2024-decree-11'] }]).length === 0);
+  assert('V11: materials do not count as documents', run([{ ...orphan, materials: ['gazette-2024-decree-11'] }]).length === 1);
+  assert('V11: an event whose fields were never written is still orphaned', run([{ id: 'ev-bare' }]).length === 1);
+  assert('V11: only the orphan is named among several', run([orphan, withActor]).map((f) => f.record?.id).join(',') === 'ev-orphan');
+}
+
+// ---------------------------------------------------------------------------------------------
 // Through the engine: parse, resolve, validate
 // ---------------------------------------------------------------------------------------------
 
@@ -195,6 +220,34 @@ assert('V3 is an atlas rule that errors', V3.layer === 'atlas' && V3.severity ==
     company: [railways, { ...again, registration: { ...registration, number: 'CRN-2002' } }]
   });
   assert('check on the control is ok with no finding at all', control.ok && control.findings.length === 0, JSON.stringify(control.findings.map((f) => `${f.rule} ${f.message}`)));
+}
+
+// And for V11: the warning runs through engine.check without failing it.
+{
+  const base: RawDataset = {
+    source: [
+      { id: 's-journalism', title: 'A news report', publisher: 'The Herald', date: '2024-03-10', url: 'https://example.invalid/herald', tier: 3, lang: 'en' }
+    ]
+  };
+  const event = {
+    id: 'ev-orphan',
+    date: '2024-03-10',
+    title_en: 'A reshuffle nobody is linked to',
+    category: 'political',
+    summary: 'The gazette published the decree; the record names no actor, institution or document yet.',
+    confidence: 'B',
+    sources: ['s-journalism']
+  };
+  const checked = engine.check({ ...base, event: [event] });
+  const warned = checked.findings.filter((f) => f.rule === 'V11');
+  assert(
+    'the orphan parses: V11 is the only finding and it warns',
+    checked.findings.length === 1 && warned.length === 1 && warned[0].severity === 'warning' && warned[0].record?.id === 'ev-orphan',
+    JSON.stringify(checked.findings.map((f) => `${f.rule} ${f.message}`))
+  );
+  assert('a warning does not fail the check', checked.ok);
+  const linked = engine.check({ ...base, event: [{ ...event, actors: ['elena-varn'] }] });
+  assert('check on the control has no finding at all and is ok', linked.ok && linked.findings.length === 0, JSON.stringify(linked.findings.map((f) => `${f.rule} ${f.message}`)));
 }
 
 console.log(`\n${passes}/${passes + failures} checks passed\n`);
