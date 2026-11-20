@@ -642,7 +642,7 @@ export function createEngine(deployment: Deployment): Engine {
       records: resolved.records,
       exceptions: resolved.exceptions,
       claimKinds,
-      resolved: { index: resolved.index, basis: resolved.basis }
+      resolved: { index: resolved.index, basis: resolved.basis, intervals: resolved.intervals, cutoff: time.cutoff }
     };
     const findings: Finding[] = [];
     for (const rule of selected) findings.push(...rule.run(ctx));
