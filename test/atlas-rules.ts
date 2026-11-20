@@ -13,7 +13,7 @@
 import { createEngine, type RawDataset } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
 import { NO_EXCEPTIONS } from '../src/kernel/exceptions.ts';
-import { V4 } from '../src/atlas/rules/index.ts';
+import { V4, V10 } from '../src/atlas/rules/index.ts';
 import type { RuleContext } from '../src/kernel/rules.ts';
 
 let failures = 0;
@@ -45,7 +45,7 @@ const sources = [
 // The register
 // ---------------------------------------------------------------------------------------------
 
-assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4');
+assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10');
 assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.covers?.join(',') === 'V5');
 
 // ---------------------------------------------------------------------------------------------
@@ -75,6 +75,33 @@ assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.cov
   assert('V4/V5: a blank attribution does not count', run([blank]).length === 1);
   assert('V4/V5: a source the register does not know is not primary', run([unknownSource]).length === 1);
   assert('V4/V5: only the failing contract is named among several', run([floating, attributed, primary, noAward]).map((f) => f.record?.id).join(',') === 'ctr-floating');
+}
+
+// ---------------------------------------------------------------------------------------------
+// V10: the generic half of the geographic hierarchy
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: pipeline fixtures `place-fixture-parentless`, `-offshore` (the schema's bbox check) and `-no-coordinates`.
+{
+  const owned = { person: [{ id: 'p-owner' }], institution: [{ id: 'i-owner' }], role: [{ id: 'r-owner' }] };
+  const run = (places: unknown[]) => V10.run(context({ ...owned, place: places }));
+  const good = { id: 'place-good', kind: 'port', parent: 'region-a', coordinates: [10.5, 36.8] };
+
+  assert('V10: a parented place with coordinates passes', run([good]).length === 0);
+
+  const parentless = run([{ ...good, id: 'place-parentless', parent: undefined }]);
+  assert('V10: a port with no parent region fails once', parentless.length === 1 && parentless[0].severity === 'error', JSON.stringify(parentless));
+  assert('V10: the finding names the place and carries the id V10', parentless[0].record?.kind === 'place' && parentless[0].record?.id === 'place-parentless' && parentless[0].rule === 'V10');
+  assert('V10: a quarter may stand without a parent', run([{ ...good, kind: 'quarter', parent: undefined }]).length === 0);
+  assert('V10: a town may stand without a parent', run([{ ...good, kind: 'town', parent: undefined }]).length === 0);
+
+  const owner = run([{ ...good, id: 'place-owned', owner: 'nobody' }]);
+  assert('V10: an owner that is no graph entity fails', owner.length === 1 && owner[0].severity === 'error' && /unknown owner "nobody"/.test(owner[0].message), JSON.stringify(owner));
+  assert('V10: an owner that is a person, an institution or a role passes', ['p-owner', 'i-owner', 'r-owner'].every((o) => run([{ ...good, owner: o }]).length === 0));
+
+  const bare = run([{ ...good, id: 'place-bare', coordinates: undefined }]);
+  assert('V10: a parented place with no coordinates is a warning', bare.length === 1 && bare[0].severity === 'warning' && /no coordinates/.test(bare[0].message), JSON.stringify(bare));
+  assert('V10: only the failing places are named among several', run([good, { ...good, id: 'place-parentless', parent: undefined }, { ...good, id: 'place-bare', coordinates: undefined }]).map((f) => f.record?.id).join(',') === 'place-parentless,place-bare');
 }
 
 // ---------------------------------------------------------------------------------------------

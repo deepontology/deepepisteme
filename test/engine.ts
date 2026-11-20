@@ -51,7 +51,7 @@ assert('parse is built', engine.parse({}, undefined).findings.length === 0);
   assert('check of an empty dataset is ok and carries the resolved dataset', checked.ok && checked.findings.length === 0 && !!checked.resolved);
 }
 assert('kinds is built', engine.kinds.size === 21);
-assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4');
+assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10');
 assert('splicer is built', typeof engine.splicer.applyEdit === 'function');
 assert('canonical is built', typeof engine.canonical.hash === 'function');
 assert(
