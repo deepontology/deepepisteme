@@ -6,8 +6,9 @@
  */
 
 import type { Rule } from '../../kernel/rules.ts';
+import { V3 } from './company-registration.ts';
 import { V4 } from './contract-award.ts';
 
-export const ATLAS_RULES: readonly Rule[] = Object.freeze([V4]);
+export const ATLAS_RULES: readonly Rule[] = Object.freeze([V3, V4]);
 
-export { V4 };
+export { V3, V4 };

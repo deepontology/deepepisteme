@@ -407,6 +407,8 @@ export function createEngine(deployment: Deployment): Engine {
   ];
   const kindMap: ReadonlyMap<string, KindDefinition> = new Map(kinds.map((k) => [k.kind, k]));
   const claimKinds: ReadonlySet<string> = new Set(kinds.filter((k) => k.bearsClaims).map((k) => k.kind));
+  /** The registries a company registration may name, for the rules that read them. */
+  const registries: ReadonlySet<string> = new Set(deployment.registry.registries);
 
   const envelope: Envelope = Object.freeze({
     exceptions: NO_EXCEPTIONS,
@@ -543,6 +545,7 @@ export function createEngine(deployment: Deployment): Engine {
       records: resolved.records,
       exceptions: resolved.exceptions,
       claimKinds,
+      registries,
       resolved: { index: resolved.index, basis: resolved.basis }
     };
     const findings: Finding[] = [];
