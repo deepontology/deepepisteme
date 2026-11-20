@@ -13,7 +13,7 @@
 import { createEngine, type ParsedDataset, type RawDataset } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
 import { NO_EXCEPTIONS } from '../src/kernel/exceptions.ts';
-import { V1, V3, V4, V7, V10, V11, V16, V17, V31, V32, V8 } from '../src/atlas/rules/index.ts';
+import { V1, V3, V4, V7, V10, V11, V16, V17, V22, V31, V32, V8 } from '../src/atlas/rules/index.ts';
 import type { RuleContext } from '../src/kernel/rules.ts';
 
 let failures = 0;
@@ -63,7 +63,7 @@ const sources = [
 // The register
 // ---------------------------------------------------------------------------------------------
 
-assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7,V31,V32');
+assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7,V31,V32,V22');
 assert('V3 is an atlas rule that errors', V3.layer === 'atlas' && V3.severity === 'error');
 assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.covers?.join(',') === 'V5');
 assert(
@@ -660,6 +660,99 @@ assert(
     event: [{ ...event, disputes: [{ claim: 'The decree was never published.', held_by: 'A rival account', source: 's-journalism', assessment: 'Not corroborated.' }] }]
   });
   assert('check on an event with a recorded dispute has no V11 finding', !disputed.findings.some((f) => f.rule === 'V11'), JSON.stringify(disputed.findings.map((f) => `${f.rule} ${f.message}`)));
+}
+
+// ---------------------------------------------------------------------------------------------
+// V22: a clamped interval is published with its record
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: 259 clamps on the real data, published in static/interval-trims.json.
+{
+  const event = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    date: '2026-01-01',
+    title_en: 'A fixture event',
+    category: 'political',
+    summary: 'A synthetic event for the clamp report.',
+    actors: ['elena-varn'],
+    confidence: 'B',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const edge = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    from: 'iren-voss',
+    to: 'elena-varn',
+    type: 'family',
+    subtype: 'spouse',
+    start: '2020',
+    description: 'A marriage recorded by the press.',
+    confidence: 'B',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const raw = (records: Record<string, unknown[]>) => ({ source: sources, ...records }) as RawDataset;
+  const run = (records: Record<string, unknown[]>) => V22.run(resolvedContext(raw(records)));
+  const where = (findings: ReturnType<typeof run>) => findings.map((f) => `${f.record?.kind}:${f.record?.id}`).join(',');
+
+  const clamped = run({ event: [event('ev-ruria-long', { date_end: '2028-01-01' })] });
+  assert('V22: an event whose end is past the cutoff is one warning', clamped.length === 1 && clamped[0].severity === 'warning' && clamped[0].rule === 'V22', JSON.stringify(clamped));
+  assert('V22: the finding names the event', where(clamped) === 'event:ev-ruria-long');
+  assert(
+    'V22: the message says the end was pulled back and published as trimmed',
+    clamped[0].message === 'interval envelope clamped: its end is pulled back to the research cutoff (published as trimmed) (V22)',
+    clamped[0].message
+  );
+  assert('V22: the control ends inside the horizon and is not reported', run({ event: [event('ev-ruria-long', { date_end: '2026-03-01' })] }).length === 0);
+  assert('V22: an edge with an end past the cutoff is reported', where(run({ relationship: [edge('rel-ruria-long', { end: '2030' })] })) === 'relationship:rel-ruria-long');
+  assert('V22: an edge that ends inside the horizon is not', run({ relationship: [edge('rel-ruria-short', { end: '2024' })] }).length === 0);
+  assert(
+    'V22: only the clamped record is named among several',
+    where(run({ event: [event('ev-ruria-ok'), event('ev-ruria-long', { date_end: '2028-01-01' })] })) === 'event:ev-ruria-long'
+  );
+
+  // A start whose year runs past the cutoff is pulled down with the end.
+  const both = run({ relationship: [edge('rel-ruria-wide', { start: '2026', end: '2030' })] });
+  assert(
+    'V22: a year-precision start past the lowered end is reported with both clamps',
+    both.length === 1 &&
+      both[0].message ===
+        'interval envelope clamped: its end is pulled back to the research cutoff (published as trimmed); its start is pulled down to its end (published as startClamped) (V22)',
+    JSON.stringify(both)
+  );
+
+  // The start clamp alone, on an interval the resolver already produced.
+  {
+    const ctx = resolvedContext(raw({ event: [event('ev-ruria-long', { date_end: '2028-01-01' })] }));
+    const iv = ctx.resolved!.intervals.get('event:ev-ruria-long')!;
+    const intervals = new Map(ctx.resolved!.intervals);
+    intervals.set('event:ev-ruria-long', { ...iv, trimmed: undefined, startClamped: true });
+    const only = V22.run({ ...ctx, resolved: { ...ctx.resolved!, intervals } });
+    assert(
+      'V22: a start clamp without an end trim is reported with only its own clause',
+      only.length === 1 && only[0].message === 'interval envelope clamped: its start is pulled down to its end (published as startClamped) (V22)',
+      JSON.stringify(only)
+    );
+  }
+
+  // The ongoing downgrade is resolve's own V22 finding; the rule does not repeat it.
+  {
+    const stale = raw({ relationship: [edge('rel-ruria-stale', { end: 'ongoing' })] });
+    const settled = engine.resolve(engine.parse(stale).records);
+    assert(
+      'V22: an ongoing edge with no recent source is downgraded by resolve',
+      settled.findings.filter((f) => f.rule === 'V22').map((f) => f.record?.id).join(',') === 'rel-ruria-stale',
+      JSON.stringify(settled.findings)
+    );
+    assert('V22: the rule does not repeat the downgrade', run({ relationship: [edge('rel-ruria-stale', { end: 'ongoing' })] }).length === 0);
+  }
+
+  // A dataset with no resolved view has nothing to report.
+  assert('V22: with no resolved view the rule finds nothing', V22.run(context({ event: [event('ev-ruria-long', { date_end: '2028-01-01' })] })).length === 0);
+
+  const valid: RawDataset = { source: [{ id: 's-journalism', title: 'A news report', publisher: 'The Herald', date: '2026-05-01', url: 'https://example.invalid/herald', tier: 3, lang: 'en' }] };
+  const checked = engine.check({ ...valid, event: [event('ev-ruria-long', { date_end: '2028-01-01' })] });
+  assert('V22: a clamp is a warning, so the check stays ok', checked.ok && checked.findings.some((f) => f.rule === 'V22' && f.record?.id === 'ev-ruria-long'), JSON.stringify(checked.findings.map((f) => `${f.rule} ${f.message}`)));
 }
 
 console.log(`\n${passes}/${passes + failures} checks passed\n`);
