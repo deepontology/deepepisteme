@@ -56,11 +56,11 @@ assert(
   engine.rules.slice(0, 3).every((r) => r.layer === 'kernel' && r.severity === 'error' && r.needs === 'parsed')
 );
 assert(
-  'a deployment rule joins the register after the kernel rules',
+  'a deployment rule joins the register after the atlas rules',
   (() => {
     const extra = { ...engine.rules[0], id: 'V90' };
     const withExtra: Deployment = { ...ruritania, extraRules: [extra] };
-    return createEngine(withExtra).rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V90';
+    return createEngine(withExtra).rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V90';
   })()
 );
 

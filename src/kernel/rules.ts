@@ -29,6 +29,7 @@ import {
   REQUIRED_SOURCE_KINDS
 } from './envelope.ts';
 import type { ConvertedExceptions } from './exceptions.ts';
+import type { ResolvedInterval } from './time.ts';
 
 /** Records as parsed, keyed by kind. */
 export type ParsedRecords = Readonly<Record<string, readonly { id: string }[]>>;
@@ -50,6 +51,13 @@ export interface ResolvedView {
   readonly index: ReadonlyMap<string, { kind: string; record: { id: string } }>;
   /** The derived basis of every claim record, by `kind:id`. */
   readonly basis: ReadonlyMap<string, BasisValue>;
+  /** The resolved interval of every dated record, by `kind:id`. */
+  readonly intervals: ReadonlyMap<string, ResolvedInterval>;
+  /**
+   * The dataset cutoff: the horizon no interval is asserted past. A rule that
+   * reads an open end treats it as reaching exactly this far.
+   */
+  readonly cutoff: number;
 }
 
 /** What every rule is given. Built once per validate call. */

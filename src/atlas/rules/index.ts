@@ -8,7 +8,10 @@
 import type { Rule } from '../../kernel/rules.ts';
 import { V4 } from './contract-award.ts';
 import { V10 } from './place-geography.ts';
+import { V16 } from './relationship-duplicates.ts';
+import { V17 } from './event-rupture.ts';
+import { V8 } from './event-causal.ts';
 
-export const ATLAS_RULES: readonly Rule[] = Object.freeze([V4, V10]);
+export const ATLAS_RULES: readonly Rule[] = Object.freeze([V4, V10, V16, V17, V8]);
 
-export { V4, V10 };
+export { V4, V10, V16, V17, V8 };
