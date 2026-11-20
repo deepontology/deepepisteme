@@ -7,9 +7,9 @@
  * Deployment, and a `data/` folder with one YAML list per registered kind
  * (a missing file is zero records, not a failure). Every record goes through
  * the engine's parse stage with the exception register in `<dir>/data/`
- * source-exceptions.yaml, when that file exists; the resolve and validate
- * stages land with slice 4, so today the gate is the parse gate: exit 0 when
- * no finding is an error, exit 1 naming every finding otherwise.
+ * source-exceptions.yaml, when that file exists, then through resolve and every
+ * rule in the engine's register: exit 0 when no finding is an error, exit 1
+ * naming every finding otherwise.
  *
  * The deployment module is imported by path at run time, so this file names
  * no country and holds no example inside src/.
@@ -83,7 +83,8 @@ async function main(): Promise<number> {
     raw[def.kind] = Array.isArray(parsed) ? parsed : [];
   }
 
-  const { records, findings } = engine.parse(raw as RawDataset, register);
+  const { findings, resolved } = engine.check(raw as RawDataset, register);
+  const records = resolved?.records ?? engine.parse(raw as RawDataset, register).records;
 
   const errors = findings.filter((f) => f.severity === 'error');
   const warnings = findings.filter((f) => f.severity !== 'error');
@@ -99,7 +100,7 @@ async function main(): Promise<number> {
     .filter(([, list]) => list.length > 0)
     .map(([kind, list]) => `${list.length} ${kind}`)
     .join(', ');
-  console.log(`  ✓ ${dir} parses clean — ${kept || 'no records'}`);
+  console.log(`  ✓ ${dir} checks clean — ${kept || 'no records'}`);
   return 0;
 }
 

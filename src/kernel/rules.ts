@@ -7,8 +7,8 @@
  *
  * A rule declares which stage it runs in. `needs: 'parsed'` rules see records
  * as authored; `needs: 'resolved'` rules also see intervals and the derived
- * basis. Slice 2 builds the register and three rules; the runner that walks
- * them lands with resolve in slice 4.
+ * basis. The engine's validate() walks the register in order over the
+ * resolved dataset; the atlas rules live in atlas/rules.
  *
  * The three rules here read the same predicates the schema-level checks read,
  * so a record can never be reported by one and accepted by the other for the
@@ -41,12 +41,25 @@ export interface Finding {
   message: string;
 }
 
+/**
+ * What resolve adds to the parsed records. A rule that needs it declares
+ * `needs: 'resolved'`; the runner always provides it.
+ */
+export interface ResolvedView {
+  /** `kind:id` to the record, every kind. */
+  readonly index: ReadonlyMap<string, { kind: string; record: { id: string } }>;
+  /** The derived basis of every claim record, by `kind:id`. */
+  readonly basis: ReadonlyMap<string, BasisValue>;
+}
+
 /** What every rule is given. Built once per validate call. */
 export interface RuleContext {
   readonly records: ParsedRecords;
   readonly exceptions: ConvertedExceptions;
   /** Kind names whose schema carries the claim envelope. */
   readonly claimKinds: ReadonlySet<string>;
+  /** Present when the runner built the context; resolved-stage rules read it. */
+  readonly resolved?: ResolvedView;
 }
 
 /**
@@ -55,6 +68,11 @@ export interface RuleContext {
  */
 export interface Rule {
   id: string;
+  /**
+   * Other register ids this rule also enforces, when one check carries two
+   * numbered validators. The register is built from `id` plus `covers`.
+   */
+  covers?: readonly string[];
   title: string;
   layer: 'kernel' | 'atlas' | 'deployment';
   severity: 'error' | 'warning';

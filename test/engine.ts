@@ -41,13 +41,17 @@ assert('engine carries its deployment', engine.deployment.name === 'Ruritania');
 assert('engine carries its time model', engine.time.cutoff === Date.UTC(2026, 5, 1));
 assert('engine is frozen', Object.isFrozen(engine));
 
-// The parts it does not build yet name their slice.
+// The three stages are built.
 assert('parse is built', engine.parse({}, undefined).findings.length === 0);
-assert('resolve names slice 4', throwsWith(() => engine.resolve({}), 'slice 4'));
-assert('validate names slice 4', throwsWith(() => engine.validate({ records: {}, intervals: new Map(), basis: new Map(), index: new Map() }), 'slice 4'));
-assert('check names slice 4 after a clean parse', throwsWith(() => engine.check({}, undefined), 'slice 4'));
+{
+  const resolved = engine.resolve(engine.parse({}, undefined).records);
+  assert('resolve of an empty dataset is empty', resolved.index.size === 0 && resolved.basis.size === 0);
+  assert('validate of an empty dataset finds nothing', engine.validate(resolved).length === 0);
+  const checked = engine.check({}, undefined);
+  assert('check of an empty dataset is ok and carries the resolved dataset', checked.ok && checked.findings.length === 0 && !!checked.resolved);
+}
 assert('kinds is built', engine.kinds.size === 21);
-assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27');
+assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4');
 assert('splicer is built', typeof engine.splicer.applyEdit === 'function');
 assert('canonical is built', typeof engine.canonical.hash === 'function');
 assert(
