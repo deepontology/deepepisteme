@@ -18,7 +18,7 @@ import {
   Verification,
   ReviewMethod,
   TranslatedBy,
-  ReviewSchema,
+  createReviewSchema,
   DisputeSchema,
   deriveBasis,
   isBasisUpgrade,
@@ -45,7 +45,6 @@ export {
   Verification,
   ReviewMethod,
   TranslatedBy,
-  ReviewSchema,
   DisputeSchema,
   deriveBasis,
   isBasisUpgrade,
@@ -54,6 +53,10 @@ export {
   TRANSLATION_TIERS
 };
 export type { BasisValue, ConfidenceValue };
+
+/** The strict review object, built for the default engine's reviewer labels. */
+export const ReviewSchema = createReviewSchema(legacyEngine.deployment.reviewerLabels);
+export type Review = z.infer<typeof ReviewSchema>;
 
 /** Explicit escapes the envelope is parsed with. */
 export type SchemaExceptions = EnvelopeExceptions;
@@ -367,4 +370,3 @@ export type Relationship = z.infer<typeof RelationshipSchema>;
 export type EventRec = z.infer<typeof EventSchema>;
 export type Era = z.infer<typeof EraSchema>;
 export type Dispute = z.infer<typeof DisputeSchema>;
-export type Review = z.infer<typeof ReviewSchema>;

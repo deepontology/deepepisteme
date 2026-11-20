@@ -202,6 +202,154 @@ assert('buildMatcher names slice 5', throwsWith(() => engine.buildMatcher([]), '
   );
 }
 
+// The envelope's message texts: a consumer with a published exception file and
+// a paper's rule numbering passes both and gets its exact strings back, while
+// the defaults name a register and no rule.
+{
+  const env = engine.envelope;
+  const base = z.strictObject({
+    id: env.slug,
+    sources: z.array(env.slug).default([]),
+    confidence: env.Confidence.default('B'),
+    basis: env.Basis.optional(),
+    reasoning: z.string().optional(),
+    basis_override_reason: z.string().optional()
+  });
+
+  const neutral = env.withClaimEnvelope('position', base);
+  const noSource = neutral.safeParse({ id: 'p-text-1' });
+  assert(
+    'the neutral source sentence names a register, not a file',
+    !noSource.success &&
+      noSource.error.issues[0].message ===
+        'rule 2: every claim record must cite at least one source, or be listed in the exception register with an owner and a deadline',
+    noSource.success ? 'parsed' : noSource.error.issues[0].message
+  );
+  const bare = neutral.safeParse({ id: 'p-text-2', sources: ['s-1'], confidence: 'B', basis: 'documented' });
+  assert(
+    'the neutral override sentence carries no rule id',
+    !bare.success &&
+      bare.error.issues[0].message ===
+        'authored basis "documented" over grade-implied "reported": a basis override requires a review object with a date and method',
+    bare.success ? 'parsed' : bare.error.issues[0].message
+  );
+
+  const published = env.withClaimEnvelope('position', base, undefined, {
+    exceptionFile: 'data/source-exceptions.yaml',
+    basisOverrideRule: 'V27'
+  });
+  const handover = published.safeParse({ id: 'p-text-3' });
+  assert(
+    'the consumer source sentence is reproduced',
+    !handover.success &&
+      handover.error.issues[0].message ===
+        'rule 2: every claim record must cite at least one source, or be listed in data/source-exceptions.yaml with an owner and a deadline',
+    handover.success ? 'parsed' : handover.error.issues[0].message
+  );
+  const consumerBare = published.safeParse({ id: 'p-text-4', sources: ['s-1'], confidence: 'B', basis: 'documented' });
+  assert(
+    'the consumer override sentence is reproduced',
+    !consumerBare.success &&
+      consumerBare.error.issues[0].message ===
+        'authored basis "documented" over grade-implied "reported" (V27): a basis override requires a review object with a date and method',
+    consumerBare.success ? 'parsed' : consumerBare.error.issues[0].message
+  );
+  assert(
+    'the consumer override-reason sentence is reproduced',
+    !consumerBare.success &&
+      consumerBare.error.issues.some(
+        (i) =>
+          i.message ===
+          'authored basis "documented" over grade-implied "reported" (V27): a basis override requires basis_override_reason of at least 10 non-blank characters, or a live entry in data/source-exceptions.yaml'
+      )
+  );
+}
+
+// The review schema is the deployment's: a reviewer is a role label or a
+// numbered outsider, a date is a real day, and the object is strict.
+{
+  const review = engine.envelope.ReviewSchema;
+  const good = { date: '2026-09-10', method: 'source-check' as const };
+  assert('maintainer signs a review', review.safeParse({ by: 'maintainer', ...good }).success);
+  assert('a deployment pass signs a review', review.safeParse({ by: 'Gazette verification pass', ...good }).success);
+  assert('a numbered outsider signs a review', review.safeParse({ by: 'reviewer-12', ...good }).success);
+
+  const named = review.safeParse({ by: 'Jane Doe', ...good });
+  assert(
+    'a personal name is refused as a reviewer',
+    !named.success && named.error.issues[0].message.includes('role label'),
+    named.success ? 'parsed' : JSON.stringify(named.error.issues)
+  );
+  assert('a padded label is refused', !review.safeParse({ by: 'maintainer ', ...good }).success);
+  assert('a numbered label takes digits only', !review.safeParse({ by: 'reviewer-one', ...good }).success);
+
+  const dated = createEngine({
+    ...ruritania,
+    reviewerLabels: ['Initial compilation', 'JORT verification pass', 'Research pass YYYY-MM-DD']
+  }).envelope.ReviewSchema;
+  const refused = dated.safeParse({ by: 'Jane Doe', ...good });
+  assert(
+    'the refusal sentence lists the deployment labels verbatim',
+    !refused.success &&
+      refused.error.issues[0].message ===
+        'reviewer must be a role label: maintainer, Initial compilation, JORT verification pass, Research pass YYYY-MM-DD, or reviewer-N (V23)',
+    refused.success ? 'parsed' : refused.error.issues[0].message
+  );
+  assert('a dated pass signs a review', dated.safeParse({ by: 'Research pass 2026-10-09', ...good }).success);
+  assert('a dated pass takes a full ISO day', !dated.safeParse({ by: 'Research pass 2026-10-9', ...good }).success);
+
+  const shape = { by: 'maintainer', date: '2026-09-10', method: 'source-check' as const };
+  assert('a review names a human actor', review.safeParse({ ...shape, actor: 'human' }).success);
+  assert('a review names an agent actor', review.safeParse({ ...shape, actor: 'agent' }).success);
+  const robot = review.safeParse({ ...shape, actor: 'robot' });
+  assert(
+    'an unknown actor is refused',
+    !robot.success && robot.error.issues.some((i) => i.message.includes('expected one of'))
+  );
+  const impossible = review.safeParse({ by: 'maintainer', date: '2026-02-31', method: 'source-check' });
+  assert(
+    'a review date must be a real day',
+    !impossible.success && impossible.error.issues.some((i) => i.message.includes('calendar-valid'))
+  );
+  const slashDate = review.safeParse({ by: 'maintainer', date: '26/07/2026', method: 'source-check' });
+  assert(
+    'a review date must be ISO',
+    !slashDate.success && slashDate.error.issues.some((i) => i.message.includes('ISO date'))
+  );
+  const extraKey = review.safeParse({ ...shape, outcome: 'refuted' });
+  assert(
+    'an unknown review key is refused',
+    !extraKey.success && extraKey.error.issues.some((i) => i.message.includes('Unrecognized key'))
+  );
+}
+
+// A review note may not claim a gazette verification without a gazette source;
+// the vocabulary and the prefixes are this engine's deployment.
+{
+  const over = engine.envelope.reviewOverclaims;
+  assert(
+    'a gazette claim without a gazette source overclaims',
+    over('checked directly against the JORT decree text', ['tier3-article']) === true
+  );
+  assert(
+    'a cited gazette source answers the claim',
+    over('checked directly against the JORT decree text', ['jort-2020-123']) === false
+  );
+  assert(
+    'the gazette match is case-insensitive',
+    over('CHECKED against the GAZETTE bulletin', ['tier3-article']) === true
+  );
+  assert(
+    'an honest disclaimer is not a claim',
+    over('NOT verified against a JORT decree — corroborated in the press only', []) === false
+  );
+  assert(
+    'a method with no gazette word never claims',
+    over('reviewed the press coverage of the handover', ['tier3-article']) === false
+  );
+  assert('an undefined method is never a claim', over(undefined, []) === false);
+}
+
 // The default engine the v0.1 modules delegate to is the Ruritania deployment
 // in everything those modules read.
 {
