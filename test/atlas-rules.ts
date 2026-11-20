@@ -104,6 +104,11 @@ assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.cov
   const named = failing.findings.filter((f) => f.rule === 'V4');
   assert('the fixture parses: V4 is the only finding', failing.findings.length === 1 && named.length === 1, JSON.stringify(failing.findings.map((f) => `${f.rule} ${f.message}`)));
   assert('check runs the atlas rule: the floating figure is reported and the run is not ok', !failing.ok && named.length === 1 && named[0].record?.id === 'ctr-floating', JSON.stringify(failing.findings.map((f) => `${f.rule} ${f.message}`)));
+  const only = (ids: string[]) => engine.validate(engine.resolve(engine.parse({ ...base, contract: [contract] }).records), { only: ids });
+  assert('validate with only V4 runs that rule alone', only(['V4']).length === 1 && only(['V4'])[0].rule === 'V4');
+  assert('validate with only V5 reaches the rule that covers it', only(['V5']).length === 1);
+  assert('validate with only another rule leaves the finding out', only(['V12']).length === 0);
+  assert('validate with an unknown id throws', (() => { try { only(['V999']); return false; } catch (e) { return /V999/.test(String(e)); } })());
   const fixed = engine.check({ ...base, contract: [{ ...contract, id: 'ctr-attributed', attributed_to: 'A reporter quoted in the cited article' }] });
   assert('check on the control has no finding at all and is ok', fixed.ok && fixed.findings.length === 0, JSON.stringify(fixed.findings.map((f) => `${f.rule} ${f.message}`)));
 }

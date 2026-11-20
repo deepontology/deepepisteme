@@ -240,7 +240,12 @@ export interface Engine {
 
   parse(raw: RawDataset, exceptions?: ExceptionRegister): { records: ParsedDataset; findings: Finding[] };
   resolve(records: ParsedDataset, exceptions?: ExceptionRegister): ResolvedDataset;
-  validate(resolved: ResolvedDataset): Finding[];
+  /**
+   * Run the register over a resolved dataset. `only` limits the run to the
+   * named rules (an id or an id the rule covers), for a caller that still runs
+   * the rest itself; an id no rule carries is an error, not a silent no-op.
+   */
+  validate(resolved: ResolvedDataset, options?: { only?: readonly string[] }): Finding[];
   check(raw: RawDataset, exceptions?: ExceptionRegister): { ok: boolean; findings: Finding[]; resolved?: ResolvedDataset };
   /**
    * The deterministic name matcher, built from this deployment's word lists
@@ -525,7 +530,15 @@ export function createEngine(deployment: Deployment): Engine {
    * that throws is a bug in the rule, not a finding about the data, so it is
    * not caught here.
    */
-  function validate(resolved: ResolvedDataset): Finding[] {
+  function validate(resolved: ResolvedDataset, options?: { only?: readonly string[] }): Finding[] {
+    let selected = rules;
+    if (options?.only) {
+      const known = new Set(rules.flatMap((r) => [r.id, ...(r.covers ?? [])]));
+      const unknown = options.only.filter((id) => !known.has(id));
+      if (unknown.length) throw new Error(`validate: no rule carries ${unknown.join(', ')}`);
+      const wanted = new Set(options.only);
+      selected = rules.filter((r) => wanted.has(r.id) || (r.covers ?? []).some((id) => wanted.has(id)));
+    }
     const ctx = {
       records: resolved.records,
       exceptions: resolved.exceptions,
@@ -533,7 +546,7 @@ export function createEngine(deployment: Deployment): Engine {
       resolved: { index: resolved.index, basis: resolved.basis }
     };
     const findings: Finding[] = [];
-    for (const rule of rules) findings.push(...rule.run(ctx));
+    for (const rule of selected) findings.push(...rule.run(ctx));
     return findings;
   }
 
