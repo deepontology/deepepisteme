@@ -25,6 +25,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./kernel": "./src/kernel/index.ts",
-    "./kernel/time": "./src/kernel/time.ts"
+    "./kernel/time": "./src/kernel/time.ts",
+    "./match": "./src/atlas/match.ts"
   }
 }
