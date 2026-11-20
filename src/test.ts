@@ -11,7 +11,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyEdit } from './emit.ts';
-import { buildMatcher } from './match.ts';
+import { legacyEngine } from './legacy.ts';
 import { applyOngoingObservation, resolveInterval, certainlyActive, possiblyActive, getCutoff, getFloor } from './time.ts';
 import { deriveBasis, configureClaimExceptions, PositionSchema, ReviewSchema } from './claim.ts';
 
@@ -239,14 +239,14 @@ assert('explicit basis overrides', deriveBasis('A', 'verified', 'reported') === 
 // ---------------------------------------------------------------------------
 
 {
-  const matcher = buildMatcher([
+  const matcher = legacyEngine.match([
     { id: 'alice-mir', kind: 'person', names: ['Alice Mir', 'Mir'] },
     { id: 'ruritanian-ministry', kind: 'institution', names: ['Ministry of Infrastructure'] }
   ]);
   const hits = matcher.find('Alice Mir met the Ministry of Infrastructure delegation.');
   assert('match finds person by full name', hits.some((h) => h.id === 'alice-mir'));
   assert('match finds institution by full name', hits.some((h) => h.id === 'ruritanian-ministry'));
-  const noDup = buildMatcher([
+  const noDup = legacyEngine.match([
     { id: 'a', kind: 'person', names: ['Jean Dupont'] },
     { id: 'b', kind: 'person', names: ['Jean Dupont'] }
   ]);

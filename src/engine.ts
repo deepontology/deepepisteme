@@ -7,7 +7,8 @@
  *
  * Slice 0 builds the pieces it moves: the time model and the claim envelope.
  * Slice 1 adds the canonical projection and the splicer. Slice 2 adds the kind
- * register, parse() and the first three rules. The rest of the interface is
+ * register, parse() and the first three rules. Slice 5 adds the name matcher,
+ * built from the deployment's word lists. The rest of the interface is
  * present and throws, so a caller meets a named wall, not an undefined
  * function.
  */
@@ -67,12 +68,22 @@ import {
 } from './kernel/rules.ts';
 import { createSplicer, type Splicer } from './kernel/splicer.ts';
 import { hash as canonicalHash, project as canonicalProject, type CanonicalOptions } from './kernel/canonical.ts';
+import { createMatcher, type MatchEntity, type Matcher, type MatcherOptions } from './atlas/match.ts';
 
 export type { ResolvedInterval, Time, TimeParameters };
 export type { BasisValue, ConfidenceValue, VerificationValue };
 export type { EnvelopeExceptions, ExceptionRegister, ExceptionSource };
 export type { KindDefinition } from './kernel/kinds.ts';
 export type { Finding, Rule, RuleContext } from './kernel/rules.ts';
+export type {
+  Match,
+  MatchEntity,
+  Matcher,
+  MatcherOptions,
+  MatcherStats,
+  MatcherWords,
+  RuleName
+} from './atlas/match.ts';
 export type { EnvelopeTexts, SourceRelationValue } from './kernel/envelope.ts';
 export type { ReviewSchema } from './kernel/review.ts';
 
@@ -148,11 +159,16 @@ export interface Deployment {
     regionKinds: readonly string[];
   };
 
-  /** Name-matcher word lists per script. */
+  /**
+   * Name-matcher word lists: the naming conventions of one deployment's
+   * country, in folded form or any form foldable to it. The matcher itself
+   * is engine code (engine.match); these lists are data.
+   */
   matcher: {
     particles: readonly string[];
     functionWords: readonly string[];
     splittablePrefixes: readonly string[];
+    surnameHeads: readonly string[];
   };
 
   /** Record kinds only this deployment has. */
@@ -205,7 +221,12 @@ export interface Engine {
   resolve(records: ParsedDataset): ResolvedDataset;
   validate(resolved: ResolvedDataset): Finding[];
   check(raw: RawDataset, exceptions?: ExceptionRegister): { ok: boolean; findings: Finding[]; resolved?: ResolvedDataset };
-  buildMatcher(entities: readonly unknown[], opts?: unknown): unknown;
+  /**
+   * The deterministic name matcher, built from this deployment's word lists
+   * over the entities a caller passes in. Two engines with different lists
+   * answer differently in one process.
+   */
+  match(entities: readonly MatchEntity[], options?: MatcherOptions): Matcher;
 }
 
 function notBuilt(part: string, slice: number): never {
@@ -262,7 +283,7 @@ function validateDeployment(d: Deployment): void {
     }
   }
 
-  for (const list of ['particles', 'functionWords', 'splittablePrefixes'] as const) {
+  for (const list of ['particles', 'functionWords', 'splittablePrefixes', 'surnameHeads'] as const) {
     const words = d.matcher?.[list];
     if (!Array.isArray(words)) throw new Error(`deployment: matcher.${list} must be a list`);
     if (new Set(words).size !== words.length) {
@@ -436,6 +457,15 @@ export function createEngine(deployment: Deployment): Engine {
 
   const rules: readonly Rule[] = Object.freeze([...KERNEL_RULES, ...(deployment.extraRules ?? [])]);
 
+  /**
+   * The name matcher: deployment word lists, closed over. Built per call,
+   * so the entity set is the caller's and nothing matcher-shaped survives
+   * between engines.
+   */
+  function match(entities: readonly MatchEntity[], options?: MatcherOptions): Matcher {
+    return createMatcher(entities, deployment.matcher, options);
+  }
+
   const engine: Engine = {
     deployment,
     time,
@@ -456,9 +486,7 @@ export function createEngine(deployment: Deployment): Engine {
       validate();
       return { ok: false, findings };
     },
-    buildMatcher(): never {
-      return notBuilt('buildMatcher', 5);
-    }
+    match
   };
 
   return Object.freeze(engine);

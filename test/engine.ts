@@ -50,7 +50,20 @@ assert('kinds is built', engine.kinds.size === 4);
 assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27');
 assert('splicer is built', typeof engine.splicer.applyEdit === 'function');
 assert('canonical is built', typeof engine.canonical.hash === 'function');
-assert('buildMatcher names slice 5', throwsWith(() => engine.buildMatcher([]), 'slice 5'));
+assert(
+  'match is built from the deployment word lists',
+  typeof engine.match === 'function' &&
+    engine
+      .match([{ id: 'marco-tell', kind: 'person', names: ['Marco Tell'] }])
+      .find('Marco Tell').length === 1
+);
+assert(
+  'a duplicate matcher word list entry is refused',
+  throwsWith(
+    () => createEngine({ ...ruritania, matcher: { ...ruritania.matcher, surnameHeads: ['ben', 'ben'] } }),
+    'matcher.surnameHeads has a duplicate entry'
+  )
+);
 
 // Deployment validation: a malformed deployment is a programming error.
 {
@@ -353,7 +366,7 @@ assert('buildMatcher names slice 5', throwsWith(() => engine.buildMatcher([]), '
 // The default engine the v0.1 modules delegate to is the Ruritania deployment
 // in everything those modules read.
 {
-  const fields = ['name', 'time', 'gazette', 'registry', 'bbox', 'index', 'vocabulary'] as const;
+  const fields = ['name', 'time', 'gazette', 'registry', 'bbox', 'index', 'vocabulary', 'matcher'] as const;
   for (const field of fields) {
     const a = JSON.stringify(legacyDeployment[field]);
     const b = JSON.stringify(ruritania[field]);

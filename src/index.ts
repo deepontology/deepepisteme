@@ -18,6 +18,7 @@ export * from './validate.ts';
 export { createEngine } from './engine.ts';
 export { createTime } from './kernel/time.ts';
 export { atlasDefaults } from './atlas/vocabulary.ts';
+export { createMatcher, normalise } from './atlas/match.ts';
 
 export type { Time } from './kernel/time.ts';
 export type {
@@ -27,9 +28,16 @@ export type {
   Envelope,
   Finding,
   KindDefinition,
+  Match,
+  MatchEntity,
+  Matcher,
+  MatcherOptions,
+  MatcherStats,
+  MatcherWords,
   ParsedDataset,
   RawDataset,
   ResolvedDataset,
   Rule,
+  RuleName,
   Splicer
 } from './engine.ts';
