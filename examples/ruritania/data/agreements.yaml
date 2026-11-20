@@ -1,0 +1,22 @@
+# Ruritania — agreements: treaties and accessions the jurisdiction is party to.
+# The jurisdiction itself is never listed as a party.
+
+- id: agr-free-trade-2020
+  title_en: "Free trade agreement with two neighbours"
+  title_fr: "Accord de libre-echange avec deux voisins"
+  kind: free-trade
+  parties: [FR, DE]
+  signed: "2020-05-01"
+  in_force: "2021-01-01"
+  summary: "A free trade agreement signed with two neighbouring states, in force since 2021."
+  confidence: B
+  sources: [gazette-2022-decree-44]
+
+- id: agr-customs-union-2018
+  title_en: "Customs union accession"
+  kind: customs-union
+  parties: [FR]
+  signed: "2018-11-02"
+  summary: "An accession to the regional customs union, ratified in 2018."
+  confidence: A
+  sources: [ruritania-statistical-office-2023]

@@ -1,0 +1,21 @@
+# Ruritania — education: credential paths, so academic timelines can overlap.
+
+- id: edu-varn-midland
+  person: elena-varn
+  institution: midland-university
+  degree_en: "Licence in civil engineering"
+  kind: licence
+  start: "1998"
+  end: "2002"
+  sources: [ruritania-statistical-office-2023]
+
+- id: edu-tell-technical
+  person: marco-tell
+  institution: null
+  degree_en: "Certificate in railway engineering"
+  kind: certificate
+  start: "1995"
+  end: "1996"
+  notes:
+    - "The technical school has no graph record of its own."
+  sources: [valley-observer-2023-11-02]

@@ -1,0 +1,28 @@
+# Ruritania — places: point features with coordinates inside the deployment
+# box (lon 15..17, lat 45..47).
+
+- id: place-rivertown-port
+  kind: port
+  name_en: "Port of Rivertown"
+  name_fr: "Port de Rivertown"
+  coordinates: [16.1, 46.2]
+  asset: true
+  owner: ruritania-railways
+  notes:
+    - "Freight port on the river mouth; coordinate from the shipping register."
+  sources: [ruritania-statistical-office-2023]
+
+- id: place-midland-campus
+  kind: industrial-zone
+  name_en: "Midland industrial estate"
+  coordinates: [16.4, 45.9]
+  asset: false
+  sources: [ruritania-statistical-office-2023]
+
+- id: place-capital-palace
+  kind: palace
+  name_en: "The old palace"
+  coordinates: [15.8, 46.5]
+  asset: true
+  owner: ministry-infrastructure
+  sources: [gazette-2022-decree-44]

@@ -1,0 +1,23 @@
+# Ruritania — declarations: records about documents, not about the world.
+
+- id: decl-ministers-2024
+  declarer: elena-varn
+  date: "2024-04-01"
+  kind: asset-declaration
+  jurisdiction: ruritania
+  body: null
+  summary: "The minister filed the annual asset declaration with the register."
+  status: available
+  sources: [gazette-2024-decree-11]
+
+- id: decl-party-board-2021
+  declarer: sofia-kern
+  date: "2021-06-01"
+  kind: member-of-something
+  jurisdiction: ruritania
+  body: null
+  summary: "The party leader declared her board membership at a state enterprise."
+  status: referred
+  notes:
+    - "Referred to the oversight committee; contents not published."
+  sources: [herald-ruritania-2024-03-10]

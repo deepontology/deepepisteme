@@ -1,0 +1,24 @@
+# Ruritania — companies: corporate identities keyed by institution ids.
+
+- id: ruritania-railways
+  legal_name_en: "Ruritanian Railways Company"
+  legal_form: state company
+  registration: { registry: company-register, number: "CRN-1001", date: "1962-09-01" }
+  status: active
+  capital: { tnd: 12000000, date: "2020-12-31" }
+  state_owned: true
+  activities: [rail transport, freight logistics]
+  notes:
+    - "The register lists the company under its founding decree."
+  sources: [gazette-2022-decree-44]
+
+- id: valley-press-co
+  legal_name_en: "Valley Press Company"
+  legal_form: limited company
+  registration: { registry: company-register, number: "CRN-2207", date: "2001-03-15" }
+  status: active
+  state_owned: false
+  activities: [regional publishing]
+  notes:
+    - "Owns the Valley Observer's printing plant."
+  sources: [valley-observer-2023-11-02]

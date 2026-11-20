@@ -44,11 +44,11 @@ const engine = createEngine(ruritania);
 // The register of kinds
 // ---------------------------------------------------------------------------------------------
 
-assert('kinds holds the kernel kinds and the ported atlas kinds', engine.kinds.size === 11, [...engine.kinds.keys()].join(','));
+assert('kinds holds the kernel kinds and the ported atlas kinds', engine.kinds.size === 21, [...engine.kinds.keys()].join(','));
 assert(
   'the kinds are named in parse order',
   [...engine.kinds.keys()].join(',') ===
-    'source,question,hypothesis,verification,institution,role,person,position,relationship,event,era'
+    'source,question,hypothesis,verification,institution,role,person,position,relationship,event,era,agreement,world-claim,company,contract,licence,vacancy,declaration,education,place,group-layer'
 );
 assert(
   'every registered kind has a file and a layer',
@@ -108,7 +108,7 @@ assert(
   );
   assert(
     'every registered kind is present even when the dataset is empty',
-    engine.parse({}).records.source.length === 0 && Object.keys(engine.parse({}).records).length === 11
+    engine.parse({}).records.source.length === 0 && Object.keys(engine.parse({}).records).length === 21
   );
 }
 

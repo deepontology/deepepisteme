@@ -1,0 +1,27 @@
+# Ruritania — group layers: the network view's subsections. The first
+# membership rule that matches wins; anything unmatched falls into an
+# auto-appended Other bucket.
+
+- layer: political
+  subsections:
+    - header_en: Cabinet
+      membership:
+        type: [ministry, government]
+
+    - header_en: Parties
+      membership:
+        type: party
+
+    - header_en: Rail leadership
+      membership:
+        members: [elena-varn, marco-tell]
+
+- layer: economic
+  subsections:
+    - header_en: State companies
+      membership:
+        type: [state-enterprise, company]
+
+    - header_en: Media owners
+      membership:
+        role_prefix: role-

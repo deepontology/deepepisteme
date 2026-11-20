@@ -1,0 +1,14 @@
+# Ruritania — vacancies: documented intervals in which an office stood empty.
+# The source has to say the office was empty; an acting holder may sit inside
+# the interval.
+
+- id: vac-infra-deputy-2024
+  role: role-infra-deputy
+  start: "2024-03-10"
+  end: "2024-09-01"
+  notes:
+    - "The reshuffle left the deputy post empty; the first delegate managed the office meanwhile."
+  confidence: B
+  reasoning: "The Herald's account of the reshuffle names no deputy between March and September."
+  falsifiable_by: "A gazette appointment dated inside the interval would refute it."
+  sources: [herald-ruritania-2024-03-10]
