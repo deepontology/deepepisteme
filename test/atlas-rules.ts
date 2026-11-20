@@ -358,7 +358,7 @@ assert(
   const run = (events: unknown[]) => V11.run(context({ event: events }));
 
   const found = run([orphan]);
-  assert('V11: an event with no actors, institutions or documents is orphaned', found.length === 1, JSON.stringify(found));
+  assert('V11: an event with no actors, institutions, documents or disputes is orphaned', found.length === 1, JSON.stringify(found));
   assert(
     'V11: the finding names the event and warns',
     found[0].record?.kind === 'event' && found[0].record?.id === 'ev-orphan' && found[0].severity === 'warning'
@@ -366,6 +366,10 @@ assert(
   assert('V11: the control differs by the actor alone', run([withActor]).length === 0);
   assert('V11: institutions alone keep the event linked', run([{ ...orphan, institutions: ['ministry-infrastructure'] }]).length === 0);
   assert('V11: documents alone keep the event linked', run([{ ...orphan, documents: ['gazette-2024-decree-11'] }]).length === 0);
+  const dispute = { claim: 'The event took place elsewhere.', held_by: 'A rival account', source: 's-journalism', assessment: 'Not corroborated.' };
+  assert('V11: a recorded dispute alone keeps the event linked', run([{ ...orphan, disputes: [dispute] }]).length === 0);
+  assert('V11: an empty disputes list is no dispute', run([{ ...orphan, disputes: [] }]).length === 1);
+  assert('V11: the dispute control differs by the dispute alone', run([orphan]).length === 1 && run([{ ...orphan, disputes: [dispute] }]).length === 0);
   assert('V11: materials do not count as documents', run([{ ...orphan, materials: ['gazette-2024-decree-11'] }]).length === 1);
   assert('V11: an event whose fields were never written is still orphaned', run([{ id: 'ev-bare' }]).length === 1);
   assert('V11: only the orphan is named among several', run([orphan, withActor]).map((f) => f.record?.id).join(',') === 'ev-orphan');
@@ -542,6 +546,11 @@ assert(
   assert('a warning does not fail the check', checked.ok);
   const linked = engine.check({ ...base, event: [{ ...event, actors: ['elena-varn'] }] });
   assert('check on the control has no finding at all and is ok', linked.ok && linked.findings.length === 0, JSON.stringify(linked.findings.map((f) => `${f.rule} ${f.message}`)));
+  const disputed = engine.check({
+    ...base,
+    event: [{ ...event, disputes: [{ claim: 'The decree was never published.', held_by: 'A rival account', source: 's-journalism', assessment: 'Not corroborated.' }] }]
+  });
+  assert('check on an event with a recorded dispute has no V11 finding', !disputed.findings.some((f) => f.rule === 'V11'), JSON.stringify(disputed.findings.map((f) => `${f.rule} ${f.message}`)));
 }
 
 console.log(`\n${passes}/${passes + failures} checks passed\n`);
