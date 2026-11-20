@@ -263,8 +263,12 @@ export interface Engine {
    * given here, then any refinements the kind chains after it. For a consumer
    * that parses records one at a time and wants the engine's schema, not a copy
    * of it. An unknown kind is an error, not a schema that accepts everything.
+   *
+   * The register may be a function. It is then read again at every parse, so a
+   * schema built once at start-up answers with the register as it stands when a
+   * record is parsed, not as it stood when the schema was built.
    */
-  schemaOf(kind: string, register?: ExceptionRegister): z.ZodType;
+  schemaOf(kind: string, register?: ExceptionRegister | (() => ExceptionRegister | undefined)): z.ZodType;
   check(raw: RawDataset, exceptions?: ExceptionRegister): { ok: boolean; findings: Finding[]; resolved?: ResolvedDataset };
   /**
    * V24. The succession chain of every non-seated role over a resolved dataset:
@@ -681,10 +685,17 @@ export function createEngine(deployment: Deployment): Engine {
   const rules: readonly Rule[] = Object.freeze([...KERNEL_RULES, ...ATLAS_RULES, ...(deployment.extraRules ?? [])]);
 
   /** Stage 2.5: the schema a kind is parsed with, for a caller that reads records one at a time. */
-  function schemaOf(kind: string, register?: ExceptionRegister): z.ZodType {
+  function schemaOf(
+    kind: string,
+    register?: ExceptionRegister | (() => ExceptionRegister | undefined)
+  ): z.ZodType {
     const def = kindMap.get(kind);
     if (!def) throw new Error(`schemaOf: the engine has no kind "${kind}"`);
-    return envelopedSchema(def, convertRegister(register, time.cutoff), deployment.envelopeTexts);
+    const exceptions =
+      typeof register === 'function'
+        ? () => convertRegister(register(), time.cutoff)
+        : convertRegister(register, time.cutoff);
+    return envelopedSchema(def, exceptions, deployment.envelopeTexts);
   }
 
   /**
