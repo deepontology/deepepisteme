@@ -99,6 +99,7 @@ this table does not run in the engine.
 | V31 | No record interval begins past the research cutoff |
 | V32 | A vacancy names a known, non-seated office and overlaps no titular holder or other vacancy |
 | V22 | A clamped interval is published with its record |
+| V9 | An influence edge is attached to a position or a documented edge |
 
 ## The claim envelope
 
