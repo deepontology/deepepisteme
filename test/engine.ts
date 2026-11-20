@@ -534,6 +534,16 @@ assert(
     'schemaOf closes a claim kind over the register it is given',
     engine.schemaOf('person', live).safeParse(unsourced).success && viaParse(unsourced, live, 'person')
   );
+  {
+    let current: typeof live | undefined;
+    const lazy = engine.schemaOf('person', () => current);
+    const before = lazy.safeParse(unsourced).success;
+    current = live;
+    const during = lazy.safeParse(unsourced).success;
+    current = undefined;
+    const after = lazy.safeParse(unsourced).success;
+    assert('a register given as a function is read at every parse', !before && during && !after);
+  }
   assert('a register given to one schemaOf call does not reach the next', !engine.schemaOf('person').safeParse(unsourced).success);
   assert(
     'schemaOf of a kind with no envelope is its plain schema',

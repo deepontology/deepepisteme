@@ -125,7 +125,8 @@ library, and `./atlas`, the seventeen record-kind schema factories
 record type, which `engine.kinds` does not carry. A consumer that parses one
 record at a time reads the schema `engine.parse` uses from
 `engine.schemaOf(kind, register?)`, closed over the claim envelope and that
-call's exception register; an unknown kind throws.
+call's exception register (or a function returning it, read at every parse, for
+a schema built once); an unknown kind throws.
 
 The v0.1 import paths `deepepisteme/time`, `/claim`, `/validate`, `/emit`,
 `/match`, `/parameters` are replaced by the exports in `package.json`.
