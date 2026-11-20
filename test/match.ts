@@ -252,6 +252,16 @@ assert('single-token rejections are recorded', m.stats.rejectedSingletons > 0, `
   );
 }
 
+// --- The browser entry ----------------------------------------------------------
+// A browser bundle imports the matcher alone, without the engine, the schemas
+// or the loader. That needs its own subpath; the root export would pull all of it.
+{
+  const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+  assert('package.json exports ./match as the matcher module', pkg.exports['./match'] === './src/atlas/match.ts');
+  const entry = await import(join(ROOT, pkg.exports['./match']));
+  assert('the ./match entry exports createMatcher and normalise', typeof entry.createMatcher === 'function' && typeof entry.normalise === 'function');
+}
+
 // --- Summary ------------------------------------------------------------------
 
 console.log(
