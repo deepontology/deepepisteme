@@ -51,7 +51,7 @@ assert('parse is built', engine.parse({}, undefined).findings.length === 0);
   assert('check of an empty dataset is ok and carries the resolved dataset', checked.ok && checked.findings.length === 0 && !!checked.resolved);
 }
 assert('kinds is built', engine.kinds.size === 21);
-assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7,V31');
+assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7,V31,V32');
 
 // resolve: the interval of every dated record kind, settled the way the
 // consumer's build settles it before emitting.
@@ -81,8 +81,9 @@ assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V2
       { id: 'era-coalition', label_en: 'Coalition Era', start: '2004-06-01', end: '2026-06-01', thesis: 'Coalitions concentrated contracting authority in few hands.', accent: '#805ad5', sources: ['s-recent'] },
       { id: 'era-overrun', label_en: 'Overrun Era', start: '2004-06-01', end: '~2026-06', thesis: 'An era whose authored end runs past the cutoff.', accent: '#2b6cb0', sources: ['s-recent'] }
     ],
+    role: [{ id: 'role-infra-undersecretary', title_en: 'An undersecretary of infrastructure', institution: 'ministry-infrastructure', authority: 40, summary: 'An office with no titular holder in the fixture.', sources: ['s-recent'] }],
     contract: [{ id: 'ctr-concession', title_en: 'A transport concession', institution: 'ministry-infrastructure', kind: 'concession', status: 'signed', start: '2024-02-01', confidence: 'B', sources: ['s-recent'] }],
-    vacancy: [{ id: 'vac-deputy', role: 'role-infra-deputy', start: '2024-03-10', end: '2024-09-01', confidence: 'B', reasoning: 'The account names no holder in the interval.', falsifiable_by: 'An appointment decree would refute it.', sources: ['s-recent'] }],
+    vacancy: [{ id: 'vac-deputy', role: 'role-infra-undersecretary', start: '2024-03-10', end: '2024-09-01', confidence: 'B', reasoning: 'The account names no holder in the interval.', falsifiable_by: 'An appointment decree would refute it.', sources: ['s-recent'] }],
     education: [{ id: 'edu-varn', person: 'elena-varn', institution: null, degree_en: 'A licence in civil engineering', field: 'engineering', kind: 'licence', start: '1998', end: '2002', sources: ['s-recent'] }],
     institution: [{ id: 'inst-midland', name_en: 'Midland University', type: 'university', layer: 'civil', parent: null, active: { start: '1962-09-01', end: 'ongoing' }, order: 30, summary: 'A public university.', confidence: 'B', sources: ['s-stale'] }],
     licence: [{ id: 'lic-spectrum', holder: 'ruritania-railways', issuer: 'ministry-infrastructure', kind: 'spectrum', grant: '2020-07-01', sources: ['s-recent'] }]
@@ -111,7 +112,7 @@ assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V2
   );
   assert(
     'the id index and the derived basis are unchanged',
-    resolved.index.size === 15 && resolved.basis.size === 11,
+    resolved.index.size === 16 && resolved.basis.size === 11,
     `index ${resolved.index.size}, basis ${resolved.basis.size}`
   );
 

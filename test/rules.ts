@@ -61,7 +61,7 @@ assert(
   (() => {
     const extra = { ...engine.rules[0], id: 'V90' };
     const withExtra: Deployment = { ...ruritania, extraRules: [extra] };
-    return createEngine(withExtra).rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7,V31,V90';
+    return createEngine(withExtra).rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7,V31,V32,V90';
   })()
 );
 

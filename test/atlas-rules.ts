@@ -13,7 +13,7 @@
 import { createEngine, type ParsedDataset, type RawDataset } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
 import { NO_EXCEPTIONS } from '../src/kernel/exceptions.ts';
-import { V1, V3, V4, V7, V10, V11, V16, V17, V31, V8 } from '../src/atlas/rules/index.ts';
+import { V1, V3, V4, V7, V10, V11, V16, V17, V31, V32, V8 } from '../src/atlas/rules/index.ts';
 import type { RuleContext } from '../src/kernel/rules.ts';
 
 let failures = 0;
@@ -63,7 +63,7 @@ const sources = [
 // The register
 // ---------------------------------------------------------------------------------------------
 
-assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7,V31');
+assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7,V31,V32');
 assert('V3 is an atlas rule that errors', V3.layer === 'atlas' && V3.severity === 'error');
 assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.covers?.join(',') === 'V5');
 assert(
@@ -502,6 +502,68 @@ assert(
   assert('V31: an edge that begins past the cutoff fails', run({ relationship: [edge('rel-ruria-future', { start: '2027', end: '2028' })] }).map((f) => f.record?.kind + ':' + f.record?.id).join(',') === 'relationship:rel-ruria-future');
   assert('V31: an edge with an end past the cutoff is pulled back by resolve, not failed here', run({ relationship: [edge('rel-ruria-long', { end: '2030' })] }).length === 0);
   assert('V31: only the failing record is named among several', run({ event: [event('ev-ruria-ok'), event('ev-ruria-future', { date: '2027-03-01' })] }).map((f) => f.record?.id).join(',') === 'ev-ruria-future');
+}
+
+// ---------------------------------------------------------------------------------------------
+// V32: a vacancy names a known, non-seated office and overlaps no holder or vacancy
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: pipeline fixtures for a vacancy over a titular holder and a vacancy of an unknown role;
+// the real data holds one vacancy and none breaks the rule.
+{
+  const role = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    title_en: 'A fixture office',
+    institution: 'ministry-infrastructure',
+    authority: 50,
+    summary: 'A synthetic office for the vacancy checks.',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const vacancy = (id: string, start: string, end: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    role: 'role-ruria-office',
+    start,
+    end,
+    confidence: 'B',
+    reasoning: 'The report names no holder in the interval.',
+    falsifiable_by: 'A gazette appointment inside the interval.',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const holder = (id: string, start: string, end: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    role: 'role-ruria-office',
+    holder: 'elena-varn',
+    start,
+    end,
+    confidence: 'B',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const run = (records: Record<string, unknown[]>) =>
+    V32.run(resolvedContext({ source: sources, role: [role('role-ruria-office')], ...records } as RawDataset));
+  const vac = vacancy('vac-ruria-a', '2020-01-01', '2020-12-31');
+
+  assert('V32: a vacancy over a titular holder is named with the position', (() => {
+    const found = run({ vacancy: [vac], position: [holder('pos-ruria-a', '2020-06-01', '2021-06-01')] });
+    return found.length === 1 && found[0].severity === 'error' && found[0].record?.kind === 'vacancy' && found[0].record?.id === 'vac-ruria-a' &&
+      found[0].message === 'overlaps titular position pos-ruria-a: the office cannot be both vacant and held (V32)';
+  })());
+  assert('V32: the control differs by the holder\'s dates alone', run({ vacancy: [vac], position: [holder('pos-ruria-a', '2021-02-01', '2022-01-01')] }).length === 0);
+  assert('V32: a holder who leaves the day the vacancy begins is a handover, not an overlap', run({ vacancy: [vac], position: [holder('pos-ruria-a', '2018-01-01', '2020-01-01')] }).length === 0);
+  assert('V32: an acting holder may sit inside the vacancy', run({ vacancy: [vac], position: [holder('pos-ruria-a', '2020-06-01', '2020-09-01', { acting: true })] }).length === 0);
+  assert('V32: a holder of another office is not a contradiction', run({ vacancy: [vac], role: [role('role-ruria-office'), role('role-ruria-other')], position: [holder('pos-ruria-a', '2020-06-01', '2021-06-01', { role: 'role-ruria-other' })] }).length === 0);
+
+  const unknown = run({ vacancy: [vacancy('vac-ruria-ghost', '2020-01-01', '2020-12-31', { role: 'role-ruria-none' })] });
+  assert('V32: a vacancy of an unknown role fails and says so', unknown.length === 1 && unknown[0].message === 'unknown role "role-ruria-none" (V32)', JSON.stringify(unknown));
+
+  const seated = run({ vacancy: [vac], role: [role('role-ruria-office', { seats: 5 })] });
+  assert('V32: a vacancy of a seated role fails and says so', seated.length === 1 && seated[0].message === 'role "role-ruria-office" is a seated term, which has no single holder to be vacant (V32)', JSON.stringify(seated));
+
+  const twice = run({ vacancy: [vac, vacancy('vac-ruria-b', '2020-06-01', '2021-03-01')] });
+  assert('V32: two vacancies of one role that overlap fail once, on the record first in id order', twice.length === 1 && twice[0].record?.id === 'vac-ruria-a' && twice[0].message === 'overlaps vacancy vac-ruria-b of the same role (V32)', JSON.stringify(twice));
+  assert('V32: the control differs by the second vacancy\'s dates alone', run({ vacancy: [vac, vacancy('vac-ruria-b', '2021-02-01', '2021-03-01')] }).length === 0);
 }
 
 // ---------------------------------------------------------------------------------------------
