@@ -73,6 +73,7 @@ import { hash as canonicalHash, project as canonicalProject, type CanonicalOptio
 import { createMatcher, type MatchEntity, type Matcher, type MatcherOptions } from './atlas/match.ts';
 import { createAtlasKinds, type AtlasLiterals } from './atlas/kinds/index.ts';
 import { ATLAS_RULES } from './atlas/rules/index.ts';
+import { DATED_KINDS } from './atlas/resolve.ts';
 
 export type { ResolvedInterval, Time, TimeParameters };
 export type { BasisValue, ConfidenceValue, VerificationValue };
@@ -105,8 +106,9 @@ export type ParsedDataset = ParsedRecords;
 export interface ResolvedDataset {
   records: ParsedDataset;
   /**
-   * Intervals by `kind:id`. resolve computes only what a rule needs, so this
-   * fills as the rule families that read it move in; it is empty until then.
+   * Intervals by `kind:id`, for every dated record kind. A problem resolving
+   * one record's interval is a finding, never a missing entry: the record
+   * keeps its place with the unknown interval as its span.
    */
   intervals: ReadonlyMap<string, ResolvedInterval>;
   /** The derived basis of every claim record, by `kind:id`. */
@@ -115,6 +117,12 @@ export interface ResolvedDataset {
   index: ReadonlyMap<string, { kind: string; record: { id: string } }>;
   /** The register this dataset was resolved against, converted once. */
   exceptions: ConvertedExceptions;
+  /**
+   * What resolving the intervals themselves discovered: an interval that ends
+   * before it begins (V15, error) and an `ongoing` downgraded for want of a
+   * dated observation (V22, warning).
+   */
+  findings: readonly Finding[];
 }
 
 /**
@@ -496,9 +504,17 @@ export function createEngine(deployment: Deployment): Engine {
   }
 
   /**
-   * Stage 2. The id index and the derived basis of every claim record: what
-   * the rules read, and nothing the site alone needs. Intervals join as the
-   * families that read them move into the engine.
+   * Stage 2. The id index, the derived basis of every claim record and the
+   * interval of every dated record: what the rules read, and nothing the site
+   * alone needs.
+   *
+   * An interval is settled the way the consumer's build settles it: `ongoing`
+   * is checked against the record's latest dated source and downgraded (with a
+   * warning) when no observation is recent enough, and a dated end past the
+   * cutoff is pulled back to it and marked `trimmed`, so nothing is ever
+   * asserted past the horizon. A record whose interval cannot resolve at all
+   * is a finding (V15), not a thrown error: the record keeps its place with
+   * the unknown interval as its span.
    */
   function resolve(records: ParsedDataset, register?: ExceptionRegister): ResolvedDataset {
     const index = new Map<string, { kind: string; record: { id: string } }>();
@@ -516,12 +532,95 @@ export function createEngine(deployment: Deployment): Engine {
         if (r.confidence && r.verification) basis.set(key, deriveBasis(r.confidence, r.verification, r.basis));
       }
     }
+
+    const intervals = new Map<string, ResolvedInterval>();
+    const findings: Finding[] = [];
+
+    // Latest publication date among a record's sources: the observation an
+    // `ongoing` interval is settled against. An undated source contributes
+    // nothing, so an interval citing only those cannot be confirmed at the
+    // cutoff.
+    const sourceDates = new Map<string, number>();
+    for (const source of (records.source ?? []) as unknown as { id?: unknown; date?: unknown }[]) {
+      if (typeof source.id !== 'string' || typeof source.date !== 'string') continue;
+      const t = Date.parse(source.date);
+      if (!Number.isNaN(t)) sourceDates.set(source.id, t);
+    }
+
+    for (const dated of DATED_KINDS) {
+      for (const record of (records[dated.kind] ?? []) as unknown as Record<string, unknown>[]) {
+        const id = typeof record.id === 'string' ? record.id : '';
+        const spec = dated.spec(record);
+        const opts = dated.allowEnvelopeTrim
+          ? { allowEnvelopeTrim: dated.allowEnvelopeTrim(record) }
+          : undefined;
+
+        let interval: ResolvedInterval;
+        try {
+          interval = time.resolveInterval(spec.start ?? undefined, spec.end ?? undefined, opts);
+        } catch (e) {
+          // V15: the resolver's own message names the tokens; the finding
+          // names the record. The fallback keeps the record's place in the
+          // index so the rest of the run can still reach it.
+          findings.push({
+            rule: 'V15',
+            severity: 'error',
+            record: { kind: dated.kind, id },
+            message: (e as Error).message
+          });
+          interval = time.resolveInterval(undefined, undefined, opts);
+        }
+
+        if (dated.settled) {
+          if (interval.status === 'ongoing') {
+            let latest: number | null = null;
+            for (const sourceId of Array.isArray(record.sources) ? record.sources : []) {
+              if (typeof sourceId !== 'string') continue;
+              const t = sourceDates.get(sourceId);
+              if (t !== undefined && (latest === null || t > latest)) latest = t;
+            }
+            const settled = time.applyOngoingObservation(interval, latest);
+            if (settled.status !== 'ongoing') {
+              findings.push({
+                rule: 'V22',
+                severity: 'warning',
+                record: { kind: dated.kind, id },
+                message: 'ongoing with no source dated within 90 days of the cutoff — downgraded to last-verified'
+              });
+            }
+            interval = settled;
+          }
+
+          if (interval.endLatest !== null && interval.endLatest > time.cutoff) {
+            // The cutoff contract: the authored token stays in `raw` and the
+            // clamp is published as `trimmed` (V22). A start that can now fall
+            // after the lowered end is clamped down to it and flagged.
+            const endLatest = time.cutoff;
+            const endEarliest = interval.endEarliest !== null ? Math.min(interval.endEarliest, endLatest) : null;
+            const startLatest = interval.startLatest > endLatest ? endLatest : interval.startLatest;
+            interval = {
+              ...interval,
+              endEarliest,
+              endLatest,
+              startLatest,
+              startClamped: interval.startClamped || startLatest < interval.startLatest,
+              lastObserved: interval.lastObserved !== null ? Math.min(interval.lastObserved, endLatest) : null,
+              trimmed: true
+            };
+          }
+        }
+
+        intervals.set(`${dated.kind}:${id}`, interval);
+      }
+    }
+
     return {
       records,
-      intervals: new Map(),
+      intervals,
       basis,
       index,
-      exceptions: convertRegister(register, time.cutoff)
+      exceptions: convertRegister(register, time.cutoff),
+      findings
     };
   }
 
@@ -585,7 +684,7 @@ export function createEngine(deployment: Deployment): Engine {
         return { ok: false, findings: parsed.findings };
       }
       const resolved = resolve(parsed.records, register);
-      const findings = [...parsed.findings, ...validate(resolved)];
+      const findings = [...parsed.findings, ...resolved.findings, ...validate(resolved)];
       return { ok: !findings.some((f) => f.severity === 'error'), findings, resolved };
     },
     match
