@@ -13,7 +13,7 @@
 import { createEngine, type ParsedDataset, type RawDataset } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
 import { NO_EXCEPTIONS } from '../src/kernel/exceptions.ts';
-import { V1, V3, V4, V7, V10, V11, V16, V17, V22, V31, V32, V8 } from '../src/atlas/rules/index.ts';
+import { V1, V3, V4, V7, V9, V10, V11, V16, V17, V22, V31, V32, V8 } from '../src/atlas/rules/index.ts';
 import type { RuleContext } from '../src/kernel/rules.ts';
 
 let failures = 0;
@@ -63,7 +63,7 @@ const sources = [
 // The register
 // ---------------------------------------------------------------------------------------------
 
-assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7,V31,V32,V22');
+assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7,V31,V32,V22,V9');
 assert('V3 is an atlas rule that errors', V3.layer === 'atlas' && V3.severity === 'error');
 assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.covers?.join(',') === 'V5');
 assert(
@@ -753,6 +753,65 @@ assert(
   const valid: RawDataset = { source: [{ id: 's-journalism', title: 'A news report', publisher: 'The Herald', date: '2026-05-01', url: 'https://example.invalid/herald', tier: 3, lang: 'en' }] };
   const checked = engine.check({ ...valid, event: [event('ev-ruria-long', { date_end: '2028-01-01' })] });
   assert('V22: a clamp is a warning, so the check stays ok', checked.ok && checked.findings.some((f) => f.rule === 'V22' && f.record?.id === 'ev-ruria-long'), JSON.stringify(checked.findings.map((f) => `${f.rule} ${f.message}`)));
+}
+
+// ---------------------------------------------------------------------------------------------
+// V9: an influence edge is attached to a position or a documented edge
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: the real data has no unmoored influence edge.
+{
+  const edge = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    from: 'iren-voss',
+    to: 'elena-varn',
+    type: 'influence',
+    start: '2020',
+    description: 'A reported channel of influence.',
+    confidence: 'B',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const documented = (id: string, extra: Record<string, unknown> = {}) =>
+    edge(id, { type: 'family', subtype: 'spouse', confidence: 'A', from: 'iren-voss', to: 'marco-tell', ...extra });
+  const role = { id: 'role-ruria-office', title_en: 'A fixture office', institution: 'ministry-infrastructure', authority: 50, summary: 'A synthetic office.', sources: ['s-journalism'] };
+  const position = (id: string, holder: string) => ({ id, role: 'role-ruria-office', holder, start: '2020', end: '2022', confidence: 'B', sources: ['s-journalism'] });
+  const run = (records: Record<string, unknown[]>) => V9.run(resolvedContext({ source: sources, ...records } as RawDataset));
+  const named = (findings: ReturnType<typeof run>) => findings.map((f) => `${f.record?.kind}:${f.record?.id}`).join(',');
+
+  const bare = run({ relationship: [edge('rel-ruria-bare')] });
+  assert('V9: an influence edge with nothing under it is one error', bare.length === 1 && bare[0].severity === 'error' && bare[0].rule === 'V9', JSON.stringify(bare));
+  assert('V9: the finding names the relationship', named(bare) === 'relationship:rel-ruria-bare');
+  assert(
+    'V9: the message names the type and both endpoints',
+    bare[0].message === 'influence edge iren-voss → elena-varn is unmoored — neither endpoint has a position or a documented edge (V9)',
+    bare[0].message
+  );
+
+  assert('V9: an advisory edge with nothing under it is an error', run({ relationship: [edge('rel-ruria-advice', { type: 'advisory' })] })[0]?.severity === 'error');
+  const reported = run({ relationship: [edge('rel-ruria-reported', { type: 'reported-influence' })] });
+  assert('V9: a reported-influence edge with nothing under it is a warning, not an error', reported.length === 1 && reported[0].severity === 'warning', JSON.stringify(reported));
+
+  assert('V9: a position held by one endpoint attaches the edge', run({ role: [role], position: [position('pos-ruria-held', 'elena-varn')], relationship: [edge('rel-ruria-bare')] }).length === 0);
+  assert(
+    'V9: the institution of a position attaches an edge that ends at it',
+    run({ role: [role], position: [position('pos-ruria-held', 'marco-tell')], relationship: [edge('rel-ruria-inst', { to: 'ministry-infrastructure' })] }).length === 0
+  );
+  assert('V9: a position of some other person does not attach it', run({ role: [role], position: [position('pos-ruria-held', 'marco-tell')], relationship: [edge('rel-ruria-bare')] }).length === 1);
+  assert('V9: a documented edge at one endpoint attaches the edge', run({ relationship: [documented('rel-ruria-marriage'), edge('rel-ruria-bare')] }).length === 0);
+  assert(
+    'V9: an edge that is only reported does not attach it',
+    run({ relationship: [documented('rel-ruria-marriage', { confidence: 'B' }), edge('rel-ruria-bare')] }).length === 1
+  );
+  assert(
+    'V9: an influence edge is never a neighbour, so two of them do not moor each other',
+    named(run({ relationship: [edge('rel-ruria-one', { confidence: 'A' }), edge('rel-ruria-two', { to: 'marco-tell', confidence: 'A' })] })) === 'relationship:rel-ruria-one,relationship:rel-ruria-two'
+  );
+  assert(
+    'V9: only the unmoored edge is named among several',
+    named(run({ role: [role], position: [position('pos-ruria-held', 'elena-varn')], relationship: [edge('rel-ruria-held'), edge('rel-ruria-bare', { from: 'marco-tell', to: 'sofia-kern' })] })) === 'relationship:rel-ruria-bare'
+  );
+  assert('V9: with no resolved view the rule finds nothing', V9.run(context({ relationship: [edge('rel-ruria-bare')] })).length === 0);
 }
 
 console.log(`\n${passes}/${passes + failures} checks passed\n`);
