@@ -26,6 +26,7 @@
     "./time": "./src/time.ts",
     "./claim": "./src/claim.ts",
     "./validate": "./src/validate.ts",
-    "./emit": "./src/emit.ts"
+    "./emit": "./src/emit.ts",
+    "./match": "./src/atlas/match.ts"
   }
 }
