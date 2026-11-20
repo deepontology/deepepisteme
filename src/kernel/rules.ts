@@ -66,6 +66,13 @@ export interface RuleContext {
   readonly exceptions: ConvertedExceptions;
   /** Kind names whose schema carries the claim envelope. */
   readonly claimKinds: ReadonlySet<string>;
+  /**
+   * The registries a company registration may name: the deployment's registry
+   * vocabulary (`Deployment.registry.registries`), provided by the runner the
+   * same way claimKinds is, so a rule never reads configuration it was handed
+   * by the caller it is checking.
+   */
+  readonly registries: ReadonlySet<string>;
   /** Present when the runner built the context; resolved-stage rules read it. */
   readonly resolved?: ResolvedView;
 }

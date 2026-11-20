@@ -10,10 +10,10 @@
  * Ruritanian names.
  */
 
-import { createEngine, type RawDataset } from '../src/engine.ts';
+import { createEngine, type ParsedDataset, type RawDataset } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
 import { NO_EXCEPTIONS } from '../src/kernel/exceptions.ts';
-import { V4, V10, V16, V17, V8 } from '../src/atlas/rules/index.ts';
+import { V3, V4, V10, V11, V16, V17, V8 } from '../src/atlas/rules/index.ts';
 import type { RuleContext } from '../src/kernel/rules.ts';
 
 let failures = 0;
@@ -32,7 +32,12 @@ function assert(name: string, cond: boolean, detail = '') {
 const engine = createEngine(ruritania);
 
 function context(records: Record<string, unknown[]>): RuleContext {
-  return { records: records as RuleContext['records'], exceptions: NO_EXCEPTIONS, claimKinds: new Set() };
+  return {
+    records: records as RuleContext['records'],
+    exceptions: NO_EXCEPTIONS,
+    claimKinds: new Set(),
+    registries: new Set(['company-register'])
+  };
 }
 
 /** The context the runner builds: records as parsed, with the resolved view beside them. */
@@ -43,6 +48,7 @@ function resolvedContext(raw: RawDataset): RuleContext {
     records: resolved.records,
     exceptions: NO_EXCEPTIONS,
     claimKinds: new Set(),
+    registries: new Set(['company-register']),
     resolved: { index: resolved.index, basis: resolved.basis, intervals: resolved.intervals, cutoff: engine.time.cutoff }
   };
 }
@@ -57,7 +63,8 @@ const sources = [
 // The register
 // ---------------------------------------------------------------------------------------------
 
-assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8');
+assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11');
+assert('V3 is an atlas rule that errors', V3.layer === 'atlas' && V3.severity === 'error');
 assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.covers?.join(',') === 'V5');
 assert(
   'V16 and V8 are resolved-stage errors, V17 a resolved-stage warning',
@@ -236,6 +243,8 @@ assert(
     title_en: 'A fixture event',
     category: 'political',
     summary: 'A synthetic event for the causal graph checks.',
+    // An actor keeps the fixture from also being an orphan (V11): the through-check counts findings.
+    actors: ['elena-varn'],
     confidence: 'B',
     sources: ['s-journalism'],
     ...extra
@@ -288,6 +297,81 @@ assert(
 }
 
 // ---------------------------------------------------------------------------------------------
+// V3: company registration numbers are valid and unique
+// ---------------------------------------------------------------------------------------------
+
+{
+  const registration = { registry: 'company-register', number: 'CRN-1001', date: '1962-09-01' };
+  const offshore = { id: 'co-offshore', registration: { ...registration, registry: 'offshore-registry' } };
+  const known = { ...offshore, registration };
+
+  const run = (companies: unknown[]) => V3.run(context({ company: companies }));
+
+  const found = run([offshore]);
+  assert('V3: a registry outside the deployment vocabulary fails once', found.length === 1, JSON.stringify(found));
+  assert('V3: the finding names the company', found[0].record?.kind === 'company' && found[0].record?.id === 'co-offshore');
+  assert('V3: the finding is an error naming the registry', found[0].severity === 'error' && found[0].message.includes('offshore-registry'));
+  assert('V3: the control differs by the registry alone', run([known]).length === 0);
+
+  const blank = { id: 'co-blank-number', registration: { ...registration, number: '   ' } };
+  assert('V3: a whitespace number is not a number', run([blank]).length === 1 && run([blank])[0].message.includes('number'));
+  assert('V3: the control differs by the number alone', run([{ ...blank, registration }]).length === 0);
+
+  assert('V3: a company with no registration is not checked', run([{ id: 'co-bare', sources: [] }]).length === 0);
+  assert(
+    'V3: a registration that is not an object fails without throwing',
+    run([{ id: 'co-string-reg', registration: 'CRN-1001' }]).length === 1
+  );
+
+  const first = { id: 'co-railways', registration };
+  const again = { id: 'co-railways-again', registration: { ...registration } };
+  const unique = { id: 'co-railways-again', registration: { ...registration, number: 'CRN-2002' } };
+  const dup = run([first, again]);
+  assert('V3: two companies on one registry number fail once, on the later record', dup.length === 1 && dup[0].record?.id === 'co-railways-again', JSON.stringify(dup));
+  assert(
+    'V3: the duplicate finding names the registry, the number and the first owner',
+    dup[0].message.includes('company-register') && dup[0].message.includes('CRN-1001') && dup[0].message.includes('co-railways')
+  );
+  assert('V3: the control differs by the later record number alone', run([first, unique]).length === 0);
+
+  // The company kind's schema refuses the same registry at parse, so engine.check
+  // reports the schema finding first; a caller that validates records parsed by
+  // its own schemas still gets the named rule, which is why V3 exists.
+  const handBuilt: Record<string, unknown[]> = { company: [{ ...offshore, sources: [] }] };
+  const foreign = engine.resolve(handBuilt as ParsedDataset);
+  const belt = engine.validate(foreign, { only: ['V3'] });
+  assert(
+    'V3: a record a foreign schema let through is still named by the rule',
+    belt.length === 1 && belt[0].rule === 'V3' && belt[0].record?.id === 'co-offshore',
+    JSON.stringify(belt)
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// V11: orphaned events
+// ---------------------------------------------------------------------------------------------
+
+{
+  const orphan = { id: 'ev-orphan', actors: [], institutions: [], documents: [] };
+  const withActor = { ...orphan, actors: ['elena-varn'] };
+
+  const run = (events: unknown[]) => V11.run(context({ event: events }));
+
+  const found = run([orphan]);
+  assert('V11: an event with no actors, institutions or documents is orphaned', found.length === 1, JSON.stringify(found));
+  assert(
+    'V11: the finding names the event and warns',
+    found[0].record?.kind === 'event' && found[0].record?.id === 'ev-orphan' && found[0].severity === 'warning'
+  );
+  assert('V11: the control differs by the actor alone', run([withActor]).length === 0);
+  assert('V11: institutions alone keep the event linked', run([{ ...orphan, institutions: ['ministry-infrastructure'] }]).length === 0);
+  assert('V11: documents alone keep the event linked', run([{ ...orphan, documents: ['gazette-2024-decree-11'] }]).length === 0);
+  assert('V11: materials do not count as documents', run([{ ...orphan, materials: ['gazette-2024-decree-11'] }]).length === 1);
+  assert('V11: an event whose fields were never written is still orphaned', run([{ id: 'ev-bare' }]).length === 1);
+  assert('V11: only the orphan is named among several', run([orphan, withActor]).map((f) => f.record?.id).join(',') === 'ev-orphan');
+}
+
+// ---------------------------------------------------------------------------------------------
 // Through the engine: parse, resolve, validate
 // ---------------------------------------------------------------------------------------------
 
@@ -321,6 +405,61 @@ assert(
   assert('validate with an unknown id throws', (() => { try { only(['V999']); return false; } catch (e) { return /V999/.test(String(e)); } })());
   const fixed = engine.check({ ...base, contract: [{ ...contract, id: 'ctr-attributed', attributed_to: 'A reporter quoted in the cited article' }] });
   assert('check on the control has no finding at all and is ok', fixed.ok && fixed.findings.length === 0, JSON.stringify(fixed.findings.map((f) => `${f.rule} ${f.message}`)));
+}
+
+// Through the engine again, for V3's unique half: the valid half is caught by
+// the company kind's schema at parse, so the rule's own check run breaks the
+// rule no schema can see, a duplicate registration number.
+{
+  const base: RawDataset = {
+    source: [
+      { id: 's-journalism', title: 'A news report', publisher: 'The Herald', date: '2024-03-10', url: 'https://example.invalid/herald', tier: 3, lang: 'en' }
+    ]
+  };
+  const registration = { registry: 'company-register', number: 'CRN-1001', date: '1962-09-01' };
+  const railways = { id: 'co-railways', legal_name_en: 'Ruritanian Railways Company', registration, sources: ['s-journalism'] };
+  const again = { ...railways, id: 'co-railways-again', legal_name_en: 'Ruritanian Railways Company (a second record)' };
+  const failing = engine.check({ ...base, company: [railways, again] });
+  const named = failing.findings.filter((f) => f.rule === 'V3');
+  assert('the duplicate parses: V3 is the only finding', failing.findings.length === 1 && named.length === 1, JSON.stringify(failing.findings.map((f) => `${f.rule} ${f.message}`)));
+  assert(
+    'check runs V3: the later company is named and the run is not ok',
+    !failing.ok && named[0].record?.id === 'co-railways-again',
+    JSON.stringify(failing.findings.map((f) => `${f.rule} ${f.message}`))
+  );
+  const control = engine.check({
+    ...base,
+    company: [railways, { ...again, registration: { ...registration, number: 'CRN-2002' } }]
+  });
+  assert('check on the control is ok with no finding at all', control.ok && control.findings.length === 0, JSON.stringify(control.findings.map((f) => `${f.rule} ${f.message}`)));
+}
+
+// And for V11: the warning runs through engine.check without failing it.
+{
+  const base: RawDataset = {
+    source: [
+      { id: 's-journalism', title: 'A news report', publisher: 'The Herald', date: '2024-03-10', url: 'https://example.invalid/herald', tier: 3, lang: 'en' }
+    ]
+  };
+  const event = {
+    id: 'ev-orphan',
+    date: '2024-03-10',
+    title_en: 'A reshuffle nobody is linked to',
+    category: 'political',
+    summary: 'The gazette published the decree; the record names no actor, institution or document yet.',
+    confidence: 'B',
+    sources: ['s-journalism']
+  };
+  const checked = engine.check({ ...base, event: [event] });
+  const warned = checked.findings.filter((f) => f.rule === 'V11');
+  assert(
+    'the orphan parses: V11 is the only finding and it warns',
+    checked.findings.length === 1 && warned.length === 1 && warned[0].severity === 'warning' && warned[0].record?.id === 'ev-orphan',
+    JSON.stringify(checked.findings.map((f) => `${f.rule} ${f.message}`))
+  );
+  assert('a warning does not fail the check', checked.ok);
+  const linked = engine.check({ ...base, event: [{ ...event, actors: ['elena-varn'] }] });
+  assert('check on the control has no finding at all and is ok', linked.ok && linked.findings.length === 0, JSON.stringify(linked.findings.map((f) => `${f.rule} ${f.message}`)));
 }
 
 console.log(`\n${passes}/${passes + failures} checks passed\n`);
