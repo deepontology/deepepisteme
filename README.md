@@ -98,6 +98,7 @@ this table does not run in the engine.
 | V7 | A person on two board edges into different entities over the same period is flagged |
 | V31 | No record interval begins past the research cutoff |
 | V32 | A vacancy names a known, non-seated office and overlaps no titular holder or other vacancy |
+| V22 | A clamped interval is published with its record |
 
 ## The claim envelope
 
