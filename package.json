@@ -6,7 +6,7 @@
   "scripts": {
     "data": "tsx src/build.ts",
     "build": "tsx src/build.ts",
-    "test": "tsx test/layers.ts && tsx test/kinds.ts && tsx test/atlas-kinds.ts && tsx test/rules.ts && tsx test/atlas-rules.ts && tsx test/cli.ts && tsx test/canonical.ts && tsx test/splicer.ts && tsx test/two-engines.ts && tsx test/time.ts && tsx test/engine.ts && tsx test/match.ts && tsx src/test.ts",
+    "test": "tsx test/layers.ts && tsx test/kinds.ts && tsx test/atlas-kinds.ts && tsx test/rules.ts && tsx test/atlas-rules.ts && tsx test/cli.ts && tsx test/canonical.ts && tsx test/splicer.ts && tsx test/two-engines.ts && tsx test/time.ts && tsx test/engine.ts && tsx test/match.ts && tsx test/readme.ts && tsx src/test.ts",
     "check": "tsc --noEmit",
     "check:example": "tsx src/cli.ts check examples/ruritania"
   },
@@ -25,12 +25,6 @@
   "exports": {
     ".": "./src/index.ts",
     "./kernel": "./src/kernel/index.ts",
-    "./kernel/time": "./src/kernel/time.ts",
-    "./parameters": "./src/parameters.ts",
-    "./time": "./src/time.ts",
-    "./claim": "./src/claim.ts",
-    "./validate": "./src/validate.ts",
-    "./emit": "./src/emit.ts",
-    "./match": "./src/atlas/match.ts"
+    "./kernel/time": "./src/kernel/time.ts"
   }
 }
