@@ -1,0 +1,22 @@
+# Ruritania — licences: time-bound rights between an operator and the state.
+
+- id: lic-rail-spectrum-2020
+  holder: ruritania-railways
+  issuer: ministry-infrastructure
+  kind: spectrum
+  grant: "2020-07-01"
+  term: { years: 15 }
+  scope: { region: "Ruritania" }
+  fees: { amount: 257251, currency: EUR, year: 2020 }
+  status: active
+  notes:
+    - "The decree sets a fifteen-year term, renewable."
+  sources: [gazette-2024-decree-11]
+
+- id: lic-press-import-2022
+  holder: valley-press-co
+  issuer: ministry-infrastructure
+  kind: import-export
+  grant: "2022-03-01"
+  status: active
+  sources: [valley-observer-2023-11-02]

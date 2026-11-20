@@ -1,0 +1,19 @@
+# Ruritania — world claims: aggregates the measured families cannot cover,
+# and contested circulating claims kept beside the measured reality.
+
+- id: wc-debt-total-2024
+  entity: null
+  claim: "The total public debt, domestic and external, reached a stated share of output in 2024."
+  assessment: "The recorded figure and its boundary are stated beside the claim, with the domestic share separated from the external stock."
+  confidence: B
+  sources: [ruritania-statistical-office-2023]
+
+- id: wc-rail-ownership
+  entity: ministry-infrastructure
+  claim: "A circulating account holds that a neighbouring state owns the railway operator."
+  assessment: "The register shows the operator as a state company held by the ministry; no foreign stake is recorded."
+  confidence: D
+  attributed_to: "A regional newsletter, single source"
+  reasoning: "The account circulates in one newsletter and cites no register entry."
+  falsifiable_by: "A register entry naming a foreign shareholder would support it."
+  sources: [valley-observer-2023-11-02]

@@ -265,6 +265,204 @@ const cases: KindCase[] = [
       { name: 'a malformed start token', record: { id: 'era-2', label_en: 'An era', start: '1991ish', end: '2004-06-01', thesis: 'A long enough era thesis.', accent: '#2b6cb0' }, rule: 'V19' },
       { name: 'an undeclared key', record: { id: 'era-3', label_en: 'An era', start: '1991-01-01', end: '2004-06-01', thesis: 'A long enough era thesis.', accent: '#2b6cb0', colour: 'blue' }, rule: 'V19' }
     ]
+  },
+  {
+    kind: 'agreement',
+    sourcesRule: 'V19',
+    valid: {
+      id: 'agr-free-trade-2020',
+      title_en: 'Free trade agreement with two neighbours',
+      kind: 'free-trade',
+      parties: ['FR', 'DE'],
+      signed: '2020-05-01',
+      in_force: '2021-01-01',
+      summary: 'A free trade agreement signed with two neighbouring states.',
+      confidence: 'B',
+      sources: ['gazette-2022-decree-44']
+    },
+    broken: [
+      { name: 'no party', record: { id: 'agr-1', title_en: 'A title', kind: 'free-trade', parties: [], summary: 'A long enough summary.', confidence: 'B', sources: ['gazette-2022-decree-44'] }, rule: 'V19', message: 'an agreement needs at least one party' },
+      { name: 'a kind outside the vocabulary', record: { id: 'agr-2', title_en: 'A title', kind: 'friendship-pact', parties: ['FR'], summary: 'A long enough summary.', confidence: 'B', sources: ['gazette-2022-decree-44'] }, rule: 'V19' },
+      { name: 'a malformed signature date', record: { id: 'agr-3', title_en: 'A title', kind: 'free-trade', parties: ['FR'], signed: 'May 2020', summary: 'A long enough summary.', confidence: 'B', sources: ['gazette-2022-decree-44'] }, rule: 'V19' },
+      { name: 'a party that is neither a code nor an id', record: { id: 'agr-4', title_en: 'A title', kind: 'free-trade', parties: ['Not A Party'], summary: 'A long enough summary.', confidence: 'B', sources: ['gazette-2022-decree-44'] }, rule: 'V19' }
+    ]
+  },
+  {
+    kind: 'world-claim',
+    sourcesRule: 'V19',
+    valid: {
+      id: 'wc-debt-total-2024',
+      entity: null,
+      claim: 'The total public debt reached a stated share of output in 2024.',
+      assessment: 'The recorded figure and its boundary are stated beside the claim.',
+      confidence: 'B',
+      sources: ['ruritania-statistical-office-2023']
+    },
+    broken: [
+      { name: 'a claim under ten characters', record: { id: 'wc-1', claim: 'Short.', assessment: 'A long enough assessment.', confidence: 'B', sources: ['ruritania-statistical-office-2023'] }, rule: 'V19' },
+      { name: 'an assessment under ten characters', record: { id: 'wc-2', claim: 'A long enough claim here.', assessment: 'Short.', confidence: 'B', sources: ['ruritania-statistical-office-2023'] }, rule: 'V19' },
+      { name: 'an entity that is not an id', record: { id: 'wc-3', entity: 'Not A Slug', claim: 'A long enough claim here.', assessment: 'A long enough assessment.', confidence: 'B', sources: ['ruritania-statistical-office-2023'] }, rule: 'V19' }
+    ]
+  },
+  {
+    kind: 'company',
+    sourcesRule: 'V19',
+    valid: {
+      id: 'comp-ruritania-railways',
+      legal_name_en: 'Ruritanian Railways Ltd',
+      legal_form: 'state company',
+      registration: { registry: 'company-register', number: 'CRN-1001', date: '1962-09-01' },
+      state_owned: true,
+      activities: ['rail transport'],
+      notes: ['The register lists the company under its founding decree.'],
+      sources: ['gazette-2022-decree-44']
+    },
+    broken: [
+      { name: 'a registry outside the deployment list', record: { id: 'comp-1', registration: { registry: 'offshore-register', number: '1', date: '2020-01-01' }, sources: ['gazette-2022-decree-44'] }, rule: 'V19', message: "registry must be one of the jurisdiction's registries" },
+      { name: 'a negative capital', record: { id: 'comp-2', capital: { tnd: -5, date: '2020-01-01' }, sources: ['gazette-2022-decree-44'] }, rule: 'V19' },
+      { name: 'a status outside the taxonomy', record: { id: 'comp-3', status: 'bankrupt', sources: ['gazette-2022-decree-44'] }, rule: 'V19' },
+      { name: 'an undeclared key', record: { id: 'comp-4', turnover: 'high', sources: ['gazette-2022-decree-44'] }, rule: 'V19' }
+    ]
+  },
+  {
+    kind: 'contract',
+    sourcesRule: 'V19',
+    valid: {
+      id: 'ctr-rail-concession-2024',
+      title_en: 'Rail concession award',
+      institution: 'ministry-infrastructure',
+      kind: 'concession',
+      procurement: { mechanism: 'open-tender', advertised: '2024-01-15' },
+      award: { value: '400000000', currency: 'EUR', year: 2024 },
+      winner: 'comp-ruritania-railways',
+      status: 'signed',
+      start: '2024-06-01',
+      sources: ['gazette-2024-decree-11']
+    },
+    broken: [
+      { name: 'a missing status', record: { id: 'ctr-1', title_en: 'A contract', institution: 'ministry-infrastructure', kind: 'concession', sources: ['gazette-2024-decree-11'] }, rule: 'V19' },
+      { name: 'a kind outside the taxonomy', record: { id: 'ctr-2', title_en: 'A contract', institution: 'ministry-infrastructure', kind: 'gift', status: 'signed', sources: ['gazette-2024-decree-11'] }, rule: 'V19' },
+      { name: 'a lowercase award currency', record: { id: 'ctr-3', title_en: 'A contract', institution: 'ministry-infrastructure', kind: 'concession', award: { value: '10', currency: 'eur', year: 2024 }, status: 'signed', sources: ['gazette-2024-decree-11'] }, rule: 'V19' },
+      { name: 'an award year before the floor', record: { id: 'ctr-4', title_en: 'A contract', institution: 'ministry-infrastructure', kind: 'concession', award: { value: '10', currency: 'EUR', year: 1850 }, status: 'signed', sources: ['gazette-2024-decree-11'] }, rule: 'V19' }
+    ]
+  },
+  {
+    kind: 'licence',
+    sourcesRule: 'V19',
+    valid: {
+      id: 'lic-rail-spectrum-2020',
+      holder: 'comp-ruritania-railways',
+      issuer: 'ministry-infrastructure',
+      kind: 'spectrum',
+      grant: '2020-07-01',
+      term: { years: 15 },
+      scope: { region: 'Ruritania' },
+      fees: { amount: 257251000, currency: 'EUR', year: 2020 },
+      status: 'active',
+      sources: ['gazette-2024-decree-11']
+    },
+    broken: [
+      { name: 'a missing grant date', record: { id: 'lic-1', holder: 'comp-ruritania-railways', issuer: 'ministry-infrastructure', kind: 'spectrum', sources: ['gazette-2024-decree-11'] }, rule: 'V19' },
+      { name: 'a term of zero years', record: { id: 'lic-2', holder: 'comp-ruritania-railways', issuer: 'ministry-infrastructure', kind: 'spectrum', grant: '2020-07-01', term: { years: 0 }, sources: ['gazette-2024-decree-11'] }, rule: 'V19' },
+      { name: 'a scope with no region', record: { id: 'lic-3', holder: 'comp-ruritania-railways', issuer: 'ministry-infrastructure', kind: 'spectrum', grant: '2020-07-01', scope: { frequency: 'annual' }, sources: ['gazette-2024-decree-11'] }, rule: 'V19' },
+      { name: 'a kind outside the taxonomy', record: { id: 'lic-4', holder: 'comp-ruritania-railways', issuer: 'ministry-infrastructure', kind: 'hunting', grant: '2020-07-01', sources: ['gazette-2024-decree-11'] }, rule: 'V19' }
+    ]
+  },
+  {
+    kind: 'vacancy',
+    sourcesRule: 'V19',
+    valid: {
+      id: 'vac-infra-deputy-2024',
+      role: 'role-infra-deputy',
+      start: '2024-03-10',
+      end: '2024-09-01',
+      notes: ['The first delegate managed the office meanwhile.'],
+      sources: ['herald-ruritania-2024-03-10']
+    },
+    broken: [
+      { name: 'a missing end date', record: { id: 'vac-1', role: 'role-infra-deputy', start: '2024-03-10', sources: ['herald-ruritania-2024-03-10'] }, rule: 'V19' },
+      { name: 'a malformed start date', record: { id: 'vac-2', role: 'role-infra-deputy', start: 'March 2024', end: '2024-09-01', sources: ['herald-ruritania-2024-03-10'] }, rule: 'V19' },
+      { name: 'a missing role', record: { id: 'vac-3', start: '2024-03-10', end: '2024-09-01', sources: ['herald-ruritania-2024-03-10'] }, rule: 'V19' }
+    ]
+  },
+  {
+    kind: 'declaration',
+    sourcesRule: 'V19',
+    valid: {
+      id: 'decl-ministers-2024',
+      declarer: 'elena-varn',
+      date: '2024-04-01',
+      kind: 'asset-declaration',
+      jurisdiction: 'ruritania',
+      body: null,
+      summary: 'The minister filed the annual asset declaration with the register.',
+      sources: ['gazette-2024-decree-11']
+    },
+    broken: [
+      { name: 'a missing declarer', record: { id: 'decl-1', date: '2024-04-01', kind: 'asset-declaration', jurisdiction: 'ruritania', body: null, summary: 'A summary.', sources: ['gazette-2024-decree-11'] }, rule: 'V19' },
+      { name: 'a kind outside the taxonomy', record: { id: 'decl-2', declarer: 'elena-varn', date: '2024-04-01', kind: 'tax-return', jurisdiction: 'ruritania', body: null, summary: 'A summary.', sources: ['gazette-2024-decree-11'] }, rule: 'V19' },
+      { name: 'a body that is not an id', record: { id: 'decl-3', declarer: 'elena-varn', date: '2024-04-01', kind: 'asset-declaration', jurisdiction: 'ruritania', body: 'Not A Slug', summary: 'A summary.', sources: ['gazette-2024-decree-11'] }, rule: 'V19' },
+      { name: 'a missing date', record: { id: 'decl-4', declarer: 'elena-varn', kind: 'asset-declaration', jurisdiction: 'ruritania', body: null, summary: 'A summary.', sources: ['gazette-2024-decree-11'] }, rule: 'V19' }
+    ]
+  },
+  {
+    kind: 'education',
+    sourcesRule: 'V19',
+    valid: {
+      id: 'edu-varn-midland',
+      person: 'elena-varn',
+      institution: 'midland-university',
+      degree_en: 'Licence in civil engineering',
+      kind: 'licence',
+      start: '1998',
+      end: '2002',
+      sources: ['ruritania-statistical-office-2023']
+    },
+    broken: [
+      { name: 'a missing person', record: { id: 'edu-1', institution: 'midland-university', degree_en: 'A degree', kind: 'licence', sources: ['ruritania-statistical-office-2023'] }, rule: 'V19' },
+      { name: 'a kind outside the taxonomy', record: { id: 'edu-2', person: 'elena-varn', institution: 'midland-university', degree_en: 'A degree', kind: 'doctorate', sources: ['ruritania-statistical-office-2023'] }, rule: 'V19' },
+      { name: 'an empty degree', record: { id: 'edu-3', person: 'elena-varn', institution: 'midland-university', degree_en: '', kind: 'licence', sources: ['ruritania-statistical-office-2023'] }, rule: 'V19' },
+      { name: 'a malformed end date', record: { id: 'edu-4', person: 'elena-varn', institution: 'midland-university', degree_en: 'A degree', kind: 'licence', end: ' graduation', sources: ['ruritania-statistical-office-2023'] }, rule: 'V19' }
+    ]
+  },
+  {
+    kind: 'place',
+    sourcesRule: 'V19',
+    valid: {
+      id: 'place-rivertown-port',
+      kind: 'port',
+      name_en: 'Port of Rivertown',
+      coordinates: [16.1, 46.2],
+      asset: true,
+      sources: ['ruritania-statistical-office-2023']
+    },
+    broken: [
+      { name: 'a kind outside the vocabulary', record: { id: 'pl-1', kind: 'volcano', name_en: 'A place', sources: ['ruritania-statistical-office-2023'] }, rule: 'V19' },
+      { name: 'coordinates outside the deployment box', record: { id: 'pl-2', kind: 'port', name_en: 'A place', coordinates: [20, 50], sources: ['ruritania-statistical-office-2023'] }, rule: 'V19', message: 'coordinates must fall inside Ruritania' },
+      { name: 'a single coordinate', record: { id: 'pl-3', kind: 'port', name_en: 'A place', coordinates: [16.1], sources: ['ruritania-statistical-office-2023'] }, rule: 'V19' },
+      { name: 'coordinates as text', record: { id: 'pl-4', kind: 'port', name_en: 'A place', coordinates: ['16.1', '46.2'], sources: ['ruritania-statistical-office-2023'] }, rule: 'V19' }
+    ]
+  },
+  {
+    kind: 'group-layer',
+    valid: {
+      layer: 'political',
+      subsections: [
+        { header_en: 'Cabinet', membership: { type: 'ministry' } },
+        { header_en: 'Parties', membership: { role_prefix: 'role-union' } }
+      ]
+    },
+    broken: [
+      {
+        name: 'a membership rule with no matcher',
+        record: { layer: 'political', subsections: [{ header_en: 'Cabinet', membership: {} }] },
+        rule: 'V19',
+        message: 'membership rule must have at least one of: role, role_prefix, type, members'
+      },
+      { name: 'a layer outside the vocabulary', record: { layer: 'naval', subsections: [{ header_en: 'Cabinet', membership: { type: 'ministry' } }] }, rule: 'V19' },
+      { name: 'no subsections', record: { layer: 'political', subsections: [] }, rule: 'V19' },
+      { name: 'a subsection with no header', record: { layer: 'political', subsections: [{ membership: { type: 'ministry' } }] }, rule: 'V19' }
+    ]
   }
 ];
 
@@ -273,7 +471,7 @@ const cases: KindCase[] = [
 // ---------------------------------------------------------------------------------------------
 
 for (const { kind, valid, sourcesRule = 'V19', broken } of cases) {
-  const withEnvelope = !['role', 'era'].includes(kind);
+  const withEnvelope = !['role', 'era', 'group-layer'].includes(kind);
   const allBroken = withEnvelope ? [...broken, ...envelopeBattery(kind, valid, sourcesRule)] : broken;
 
   const clean = parseOne(kind, valid);

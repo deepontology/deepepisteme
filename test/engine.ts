@@ -46,7 +46,7 @@ assert('parse is built', engine.parse({}, undefined).findings.length === 0);
 assert('resolve names slice 4', throwsWith(() => engine.resolve({}), 'slice 4'));
 assert('validate names slice 4', throwsWith(() => engine.validate({ records: {}, intervals: new Map(), basis: new Map(), index: new Map() }), 'slice 4'));
 assert('check names slice 4 after a clean parse', throwsWith(() => engine.check({}, undefined), 'slice 4'));
-assert('kinds is built', engine.kinds.size === 11);
+assert('kinds is built', engine.kinds.size === 21);
 assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27');
 assert('splicer is built', typeof engine.splicer.applyEdit === 'function');
 assert('canonical is built', typeof engine.canonical.hash === 'function');

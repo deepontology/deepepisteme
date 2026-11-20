@@ -1,0 +1,25 @@
+# Ruritania — contracts: procurement, PPP and concession records.
+
+- id: ctr-rail-concession-2024
+  title_en: "Rail concession award"
+  institution: ministry-infrastructure
+  kind: concession
+  procurement: { mechanism: open-tender, advertised: "2024-01-15" }
+  award: { value: "400000000", currency: EUR, year: 2024 }
+  winner: ruritania-railways
+  status: signed
+  start: "2024-06-01"
+  notes:
+    - "The gazette decree names the winner and the advertised mechanism."
+  sources: [gazette-2024-decree-11]
+
+- id: ctr-ministry-press-2023
+  title_en: "Printing services for the ministry"
+  institution: ministry-infrastructure
+  kind: service
+  award: { value: "25000", currency: EUR, year: 2023 }
+  winner: valley-press-co
+  status: finished
+  start: "2023-02-01"
+  end: "2023-12-31"
+  sources: [herald-ruritania-2024-03-10]
