@@ -40,7 +40,8 @@ import {
 } from './kernel/envelope.ts';
 import {
   DisputeSchema,
-  ReviewSchema,
+  ReviewSchema as ReviewSchemaT,
+  createReviewSchema,
   reviewOverclaims as reviewOverclaimsIn,
   type GazetteVocabulary
 } from './kernel/review.ts';
@@ -83,6 +84,8 @@ export type {
   MatcherWords,
   RuleName
 } from './atlas/match.ts';
+export type { EnvelopeTexts, SourceRelationValue } from './kernel/envelope.ts';
+export type { ReviewSchema } from './kernel/review.ts';
 
 // ---------------------------------------------------------------------------------------------
 // The pipeline
@@ -198,7 +201,8 @@ export interface Envelope {
   readonly Confidence: typeof Confidence;
   readonly Basis: typeof Basis;
   readonly Verification: typeof Verification;
-  readonly ReviewSchema: typeof ReviewSchema;
+  /** The strict review object, built from this deployment's reviewer labels. */
+  readonly ReviewSchema: ReviewSchemaT;
   readonly DisputeSchema: typeof DisputeSchema;
   readonly slug: typeof slug;
   readonly requiredSourceKinds: ReadonlySet<string>;
@@ -290,6 +294,11 @@ function validateDeployment(d: Deployment): void {
   if (!Array.isArray(d.reviewerLabels)) {
     throw new Error('deployment: reviewerLabels must be a list (it may be empty)');
   }
+  for (const label of d.reviewerLabels) {
+    if (typeof label !== 'string' || !nonBlank(label, 2)) {
+      throw new Error('deployment: every reviewer label must be at least 2 non-blank characters');
+    }
+  }
 
   for (const basis of BASIS_VALUES) {
     const weight = d.index?.discount?.[basis];
@@ -332,9 +341,13 @@ export function createEngine(deployment: Deployment): Engine {
 
   const time = createTime(deployment.time);
 
+  /** The review schema is the deployment's: its labels decide who may sign. */
+  const review = createReviewSchema(deployment.reviewerLabels);
+
   const literals: KindLiterals = {
     sourceLanguages: deployment.sourceLanguages,
-    translatedLocales: deployment.translatedLocales
+    translatedLocales: deployment.translatedLocales,
+    review
   };
 
   const kinds: KindDefinition[] = [...createKernelKinds(literals), ...(deployment.extraKinds ?? [])];
@@ -352,7 +365,7 @@ export function createEngine(deployment: Deployment): Engine {
     Confidence,
     Basis,
     Verification,
-    ReviewSchema,
+    ReviewSchema: review,
     DisputeSchema,
     slug,
     requiredSourceKinds: REQUIRED_SOURCE_KINDS

@@ -19,8 +19,8 @@
 
 import { z } from 'zod';
 import { Basis, Confidence, Verification } from './basis.ts';
-import { SCHEMA_RULE, nonBlank, slug, withClaimEnvelope } from './envelope.ts';
-import { DisputeSchema, ReviewSchema } from './review.ts';
+import { SCHEMA_RULE, SourceRelation, nonBlank, slug, withClaimEnvelope } from './envelope.ts';
+import { DisputeSchema, type ReviewSchema } from './review.ts';
 import { TranslatedBy } from './translation.ts';
 
 /** The deployment values the kernel schemas validate against. */
@@ -29,6 +29,8 @@ export interface KindLiterals {
   readonly sourceLanguages: readonly string[];
   /** Languages prose is translated into. */
   readonly translatedLocales: readonly string[];
+  /** The review schema, built from the deployment's reviewer labels. */
+  readonly review: ReviewSchema;
 }
 
 /** One record kind: what it is called, what file holds it, and its schema. */
@@ -166,16 +168,6 @@ export function questionSchema(literals: KindLiterals) {
 // Hypothesis
 // ---------------------------------------------------------------------------------------------
 
-/** Which source relationships can honestly carry which kinds of claim. */
-const SourceRelation = z.enum([
-  'direct-record',
-  'direct-report',
-  'corroborated-report',
-  'single-report',
-  'inference-from-records',
-  'circulating-claim'
-]);
-
 /** The two axes that make the source relationship explicit on a claim. */
 const claimAxes = {
   source_relation: SourceRelation.optional(),
@@ -183,19 +175,21 @@ const claimAxes = {
 };
 
 /** The claim envelope's fields, shared by a hypothesis's evidence findings. */
-const claimFields = {
-  confidence: Confidence.default('B'),
-  basis: Basis.optional(),
-  verification: Verification.default('unflagged'),
-  attributed_to: z.string().optional(),
-  reasoning: z.string().optional(),
-  falsifiable_by: z.string().optional(),
-  basis_override_reason: z.string().optional(),
-  ...claimAxes,
-  disputes: z.array(DisputeSchema).default([]),
-  review: ReviewSchema.optional(),
-  sources: z.array(slug).min(1, 'every claim record needs at least one source')
-};
+function claimFields(review: ReviewSchema) {
+  return {
+    confidence: Confidence.default('B'),
+    basis: Basis.optional(),
+    verification: Verification.default('unflagged'),
+    attributed_to: z.string().optional(),
+    reasoning: z.string().optional(),
+    falsifiable_by: z.string().optional(),
+    basis_override_reason: z.string().optional(),
+    ...claimAxes,
+    disputes: z.array(DisputeSchema).default([]),
+    review: review.optional(),
+    sources: z.array(slug).min(1, 'every claim record needs at least one source')
+  };
+}
 
 /** One evidence finding tested against a hypothesis's falsifier clause. */
 function hypothesisEvidenceSchema(literals: KindLiterals) {
@@ -211,7 +205,7 @@ function hypothesisEvidenceSchema(literals: KindLiterals) {
       note: z.string().optional(),
       ...translatable('note', literals.translatedLocales),
       references: z.array(NarrativeReferenceSchema).default([]),
-      ...claimFields
+      ...claimFields(literals.review)
     })
   );
 }

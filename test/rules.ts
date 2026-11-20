@@ -88,6 +88,29 @@ assert(
     'V12: an absent sources field counts as no source',
     V12.run(context({ position: [{ id: 'pos-null' }] })).length === 1
   );
+
+  // The register's required kinds include the vacancy: an office that stood
+  // empty is a claim like any other, so it cannot pass unsourced.
+  assert(
+    'the required kinds number fourteen and include the vacancy',
+    engine.envelope.requiredSourceKinds.size === 14 && engine.envelope.requiredSourceKinds.has('vacancy')
+  );
+  const vacant = V12.run(context({ vacancy: [{ id: 'vac-1', sources: [] }] }));
+  assert(
+    'V12: a vacancy with no source is refused',
+    vacant.length === 1 && vacant[0].record?.kind === 'vacancy' && vacant[0].record?.id === 'vac-1',
+    JSON.stringify(vacant)
+  );
+  const vacRegister: ExceptionRegister = {
+    sourceExceptions: new Map([
+      ['vacancy:vac-1', { rule: 'no-source', expires: '2026-12-01', reason: 'the gazette issue is on order' }]
+    ]),
+    basisOverrides: new Map()
+  };
+  assert(
+    'V12: the register entry lets the vacancy stand',
+    V12.run(context({ vacancy: [{ id: 'vac-1', sources: [] }] }, vacRegister)).length === 0
+  );
 }
 
 {
