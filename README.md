@@ -20,6 +20,12 @@ The engine ships one example deployment, the invented country Ruritania under
 A finding is a rule id, a severity, the record and one sentence. The run is
 not ok when any finding is an error. Warnings are returned and never dropped.
 
+`engine.successions(resolved, { gapYears, overlapYears })` derives the succession
+chain of every non-seated role (V24): each position's predecessor and successor,
+the handovers that left a gap, and the holders who certainly overlapped. It is a
+derivation, not a rule. The thresholds are the caller's, published beside the
+counts so the counts can be recomputed, and no finding is raised.
+
 ## The three layers
 
 | Layer | What belongs in it |

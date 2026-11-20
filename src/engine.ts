@@ -13,6 +13,7 @@
  * function.
  */
 
+import { deriveSuccessions, type Succession, type SuccessionThresholds } from './atlas/succession.ts';
 import {
   createTime,
   type ResolvedInterval,
@@ -79,6 +80,7 @@ export type { ResolvedInterval, Time, TimeParameters };
 export type { BasisValue, ConfidenceValue, VerificationValue };
 export type { EnvelopeExceptions, ExceptionRegister, ExceptionSource };
 export type { KindDefinition } from './kernel/kinds.ts';
+export type { Succession, SuccessionGap, SuccessionOverlap, SuccessionThresholds } from './atlas/succession.ts';
 export type { Finding, Rule, RuleContext } from './kernel/rules.ts';
 export type {
   Match,
@@ -255,6 +257,14 @@ export interface Engine {
    */
   validate(resolved: ResolvedDataset, options?: { only?: readonly string[] }): Finding[];
   check(raw: RawDataset, exceptions?: ExceptionRegister): { ok: boolean; findings: Finding[]; resolved?: ResolvedDataset };
+  /**
+   * V24. The succession chain of every non-seated role over a resolved dataset:
+   * each position's predecessor and successor, the handovers that left a gap
+   * and the holders who certainly overlapped. The thresholds are the caller's,
+   * published beside the counts so the counts can be recomputed. A derivation,
+   * not a rule: it raises no finding.
+   */
+  successions(resolved: ResolvedDataset, thresholds: SuccessionThresholds): Succession;
   /**
    * The deterministic name matcher, built from this deployment's word lists
    * over the entities a caller passes in. Two engines with different lists
@@ -689,6 +699,9 @@ export function createEngine(deployment: Deployment): Engine {
       const resolved = resolve(parsed.records, register);
       const findings = [...parsed.findings, ...resolved.findings, ...validate(resolved)];
       return { ok: !findings.some((f) => f.severity === 'error'), findings, resolved };
+    },
+    successions(resolved: ResolvedDataset, thresholds: SuccessionThresholds) {
+      return deriveSuccessions({ records: resolved.records, intervals: resolved.intervals, cutoff: time.cutoff }, thresholds);
     },
     match
   };
