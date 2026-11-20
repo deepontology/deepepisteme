@@ -87,8 +87,12 @@ this table does not run in the engine.
 | V12 | Every claim record cites at least one source, or is a live exception |
 | V25 | A grade-A claim record cites a tier-1 or tier-2 source, or is a live exception |
 | V27 | A basis override carries a review, reasoning, a falsifier where owed, a source and a reason |
-| V3 | Company registration numbers are valid and unique |
 | V4 / V5 | A contract award value is attributed or backed by a tier-1 or tier-2 source |
+| V10 | A place has a parent region, a real owner if it names one, and coordinates for the map |
+| V16 | Duplicate relationships on the same key with overlapping intervals fail |
+| V17 | A rupture event not linked into the causal graph is flagged |
+| V8 | A cause cannot begin after its consequence, and a causal cycle fails |
+| V3 | Company registration numbers are valid and unique |
 | V11 | Events with no participants, organisations or documents are orphaned |
 
 ## The claim envelope

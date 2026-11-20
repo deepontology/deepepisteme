@@ -243,6 +243,8 @@ assert(
     title_en: 'A fixture event',
     category: 'political',
     summary: 'A synthetic event for the causal graph checks.',
+    // An actor keeps the fixture from also being an orphan (V11): the through-check counts findings.
+    actors: ['elena-varn'],
     confidence: 'B',
     sources: ['s-journalism'],
     ...extra
