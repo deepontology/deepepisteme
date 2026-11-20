@@ -13,7 +13,7 @@
 import { createEngine, type ParsedDataset, type RawDataset } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
 import { NO_EXCEPTIONS } from '../src/kernel/exceptions.ts';
-import { V1, V3, V4, V7, V10, V11, V16, V17, V8 } from '../src/atlas/rules/index.ts';
+import { V1, V3, V4, V7, V10, V11, V16, V17, V31, V8 } from '../src/atlas/rules/index.ts';
 import type { RuleContext } from '../src/kernel/rules.ts';
 
 let failures = 0;
@@ -63,7 +63,7 @@ const sources = [
 // The register
 // ---------------------------------------------------------------------------------------------
 
-assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7');
+assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11,V1,V7,V31');
 assert('V3 is an atlas rule that errors', V3.layer === 'atlas' && V3.severity === 'error');
 assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.covers?.join(',') === 'V5');
 assert(
@@ -455,6 +455,53 @@ assert(
   assert('V7: a seat superseded by another is not a claim of its own', run([a, b, seat('brd-ruria-c', 'co-ruria-bank', '2005', '2012', { supersedes: 'brd-ruria-a' })]).length === 0);
   assert('V7: a family edge is not a seat', run([a, { ...b, type: 'family' }]).length === 0);
   assert('V7: three overlapping seats make three pairs', run([a, b, seat('brd-ruria-c', 'co-ruria-port', '2006', '2009')]).length === 3);
+}
+
+// ---------------------------------------------------------------------------------------------
+// V31: no record interval begins past the research cutoff
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: pipeline fixture `fixture-beyond-cutoff`, an event dated past the cutoff; the real data has none.
+{
+  const event = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    date: '2026-01-01',
+    title_en: 'A fixture event',
+    category: 'political',
+    summary: 'A synthetic event for the horizon check.',
+    actors: ['elena-varn'],
+    confidence: 'B',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const edge = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    from: 'iren-voss',
+    to: 'elena-varn',
+    type: 'family',
+    subtype: 'spouse',
+    start: '2020',
+    description: 'A marriage recorded by the press.',
+    confidence: 'B',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const run = (records: Record<string, unknown[]>) => V31.run(resolvedContext({ source: sources, ...records } as RawDataset));
+  assert('V31: the cutoff is the deployment\'s own', engine.time.cutoff === Date.parse('2026-06-01'), String(engine.time.cutoff));
+
+  const beyond = run({ event: [event('ev-ruria-future', { date: '2027-03-01' })] });
+  assert('V31: an event that begins past the cutoff fails once', beyond.length === 1 && beyond[0].severity === 'error' && beyond[0].rule === 'V31', JSON.stringify(beyond));
+  assert('V31: the finding names the event', beyond[0].record?.kind === 'event' && beyond[0].record?.id === 'ev-ruria-future');
+  assert('V31: the message names the start and the cutoff', beyond[0].message === 'interval begins 2027-03-01, past the research cutoff 2026-06-01 (V31)', beyond[0].message);
+
+  const endsPast = run({ event: [event('ev-ruria-long', { date_end: '2027-03-01' })] });
+  assert('V31: an event that only ends past the cutoff is pulled back by resolve, not failed here', endsPast.length === 0, JSON.stringify(endsPast));
+
+  assert('V31: the control differs by the date alone', run({ event: [event('ev-ruria-future', { date: '2026-03-01' })] }).length === 0);
+  assert('V31: an event dated on the cutoff day passes', run({ event: [event('ev-ruria-today', { date: '2026-06-01' })] }).length === 0);
+  assert('V31: an edge that begins past the cutoff fails', run({ relationship: [edge('rel-ruria-future', { start: '2027', end: '2028' })] }).map((f) => f.record?.kind + ':' + f.record?.id).join(',') === 'relationship:rel-ruria-future');
+  assert('V31: an edge with an end past the cutoff is pulled back by resolve, not failed here', run({ relationship: [edge('rel-ruria-long', { end: '2030' })] }).length === 0);
+  assert('V31: only the failing record is named among several', run({ event: [event('ev-ruria-ok'), event('ev-ruria-future', { date: '2027-03-01' })] }).map((f) => f.record?.id).join(',') === 'ev-ruria-future');
 }
 
 // ---------------------------------------------------------------------------------------------

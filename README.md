@@ -96,6 +96,7 @@ this table does not run in the engine.
 | V11 | Events with no participants, organisations, documents or recorded disputes are orphaned |
 | V1 | Direct ownership shares into one entity sum to 100 percent or less at any instant |
 | V7 | A person on two board edges into different entities over the same period is flagged |
+| V31 | No record interval begins past the research cutoff |
 
 ## The claim envelope
 
