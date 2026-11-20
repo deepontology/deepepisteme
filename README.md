@@ -97,6 +97,7 @@ this table does not run in the engine.
 | V1 | Direct ownership shares into one entity sum to 100 percent or less at any instant |
 | V7 | A person on two board edges into different entities over the same period is flagged |
 | V31 | No record interval begins past the research cutoff |
+| V32 | A vacancy names a known, non-seated office and overlaps no titular holder or other vacancy |
 
 ## The claim envelope
 
