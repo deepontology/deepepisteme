@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import { createEngine, type Deployment } from '../src/engine.ts';
+import { createEngine, type Deployment, type RawDataset } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
 import { legacyDeployment, legacyEngine } from '../src/legacy.ts';
 
@@ -51,7 +51,138 @@ assert('parse is built', engine.parse({}, undefined).findings.length === 0);
   assert('check of an empty dataset is ok and carries the resolved dataset', checked.ok && checked.findings.length === 0 && !!checked.resolved);
 }
 assert('kinds is built', engine.kinds.size === 21);
-assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V3,V4,V11');
+assert('rules is built', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11');
+
+// resolve: the interval of every dated record kind, settled the way the
+// consumer's build settles it before emitting.
+{
+  const raw: RawDataset = {
+    source: [
+      { id: 's-recent', title: 'A recent dispatch', publisher: 'The Herald', date: '2026-05-01', url: 'https://example.invalid/recent', tier: 3 },
+      { id: 's-stale', title: 'A stale dispatch', publisher: 'The Herald', date: '2024-03-10', url: 'https://example.invalid/stale', tier: 3 }
+    ],
+    position: [
+      { id: 'pos-confirmed', role: 'role-infra-minister', holder: 'elena-varn', start: '2022-03-15', end: 'ongoing', sources: ['s-recent'] },
+      { id: 'pos-stale', role: 'role-infra-deputy', holder: 'marco-tell', start: '2022-03-15', end: 'ongoing', sources: ['s-stale'] },
+      { id: 'pos-inverted', role: 'role-union-leader', holder: 'sofia-kern', start: '2024-03-10', end: '2024-03-01', sources: ['s-recent'] },
+      {
+        id: 'pos-disputed',
+        role: 'role-union-leader',
+        holder: 'sofia-kern',
+        start: '2024-03-10',
+        end: '2024-03-01',
+        disputes: [{ claim: 'The end date is the deposition, not the appointment.', held_by: 'The Herald' }],
+        sources: ['s-recent']
+      }
+    ],
+    relationship: [{ id: 'rel-alliance', from: 'sofia-kern', to: 'elena-varn', type: 'political-alliance', description: 'The Union Party endorsed the programme.', confidence: 'B', start: '2023', sources: ['s-recent'] }],
+    event: [{ id: 'ev-reshuffle', date: '2024-03-10', title_en: 'A cabinet reshuffle', category: 'political', summary: 'The portfolio moved hands.', confidence: 'B', sources: ['s-recent'] }],
+    era: [
+      { id: 'era-coalition', label_en: 'Coalition Era', start: '2004-06-01', end: '2026-06-01', thesis: 'Coalitions concentrated contracting authority in few hands.', accent: '#805ad5', sources: ['s-recent'] },
+      { id: 'era-overrun', label_en: 'Overrun Era', start: '2004-06-01', end: '~2026-06', thesis: 'An era whose authored end runs past the cutoff.', accent: '#2b6cb0', sources: ['s-recent'] }
+    ],
+    contract: [{ id: 'ctr-concession', title_en: 'A transport concession', institution: 'ministry-infrastructure', kind: 'concession', status: 'signed', start: '2024-02-01', confidence: 'B', sources: ['s-recent'] }],
+    vacancy: [{ id: 'vac-deputy', role: 'role-infra-deputy', start: '2024-03-10', end: '2024-09-01', confidence: 'B', reasoning: 'The account names no holder in the interval.', falsifiable_by: 'An appointment decree would refute it.', sources: ['s-recent'] }],
+    education: [{ id: 'edu-varn', person: 'elena-varn', institution: null, degree_en: 'A licence in civil engineering', field: 'engineering', kind: 'licence', start: '1998', end: '2002', sources: ['s-recent'] }],
+    institution: [{ id: 'inst-midland', name_en: 'Midland University', type: 'university', layer: 'civil', parent: null, active: { start: '1962-09-01', end: 'ongoing' }, order: 30, summary: 'A public university.', confidence: 'B', sources: ['s-stale'] }],
+    licence: [{ id: 'lic-spectrum', holder: 'ruritania-railways', issuer: 'ministry-infrastructure', kind: 'spectrum', grant: '2020-07-01', sources: ['s-recent'] }]
+  };
+
+  const parsed = engine.parse(raw);
+  assert(
+    'the interval fixture parses clean',
+    parsed.findings.length === 0,
+    JSON.stringify(parsed.findings.map((f) => f.message))
+  );
+  const resolved = engine.resolve(parsed.records);
+  const iv = (key: string) => resolved.intervals.get(key);
+
+  assert(
+    'every dated record is resolved, keyed kind:id',
+    resolved.intervals.size === 13,
+    `intervals: ${[...resolved.intervals.keys()].join(', ')}`
+  );
+  assert(
+    'the dated kinds are all present by their ids',
+    ['pos-confirmed', 'pos-stale', 'pos-inverted', 'pos-disputed'].every((id) => iv(`position:${id}`) !== undefined) &&
+      !!iv('relationship:rel-alliance') && !!iv('event:ev-reshuffle') && !!iv('era:era-coalition') && !!iv('era:era-overrun') &&
+      !!iv('contract:ctr-concession') && !!iv('vacancy:vac-deputy') && !!iv('education:edu-varn') &&
+      !!iv('institution:inst-midland') && !!iv('licence:lic-spectrum')
+  );
+  assert(
+    'the id index and the derived basis are unchanged',
+    resolved.index.size === 15 && resolved.basis.size === 11,
+    `index ${resolved.index.size}, basis ${resolved.basis.size}`
+  );
+
+  // Settling `ongoing` against the evidence.
+  assert('an ongoing interval with a recent dated source stays ongoing', iv('position:pos-confirmed')?.status === 'ongoing');
+  assert(
+    'an ongoing interval with no recent observation is downgraded, with a V22 warning',
+    iv('position:pos-stale')?.status === 'last-verified' &&
+      resolved.findings.some((f) => f.rule === 'V22' && f.severity === 'warning' && f.record?.id === 'pos-stale')
+  );
+  assert(
+    'the downgrade warning carries the consumer sentence',
+    resolved.findings.find((f) => f.record?.id === 'pos-stale')?.message ===
+      'ongoing with no source dated within 90 days of the cutoff — downgraded to last-verified'
+  );
+  assert(
+    'an institution settles ongoing from its active object and its sources',
+    iv('institution:inst-midland')?.status === 'last-verified' &&
+      resolved.findings.some((f) => f.rule === 'V22' && f.record?.id === 'inst-midland')
+  );
+
+  // The cutoff contract.
+  assert(
+    'a dated end past the cutoff is clamped back and marked trimmed',
+    iv('era:era-overrun')?.endLatest === engine.time.cutoff && iv('era:era-overrun')?.trimmed === true,
+    JSON.stringify(iv('era:era-overrun'))
+  );
+  assert(
+    'the clamp keeps the authored token in raw',
+    iv('era:era-overrun')?.raw.end === '~2026-06'
+  );
+  assert(
+    'a licence anchors its grant and is neither settled nor clamped',
+    iv('licence:lic-spectrum')?.status === 'unknown' &&
+      iv('licence:lic-spectrum')?.endLatest === engine.time.cutoff &&
+      iv('licence:lic-spectrum')?.trimmed === undefined
+  );
+
+  // An interval that cannot resolve is a finding, never a thrown error.
+  const inverted = resolved.findings.filter((f) => f.rule === 'V15');
+  assert(
+    'an interval that ends before it begins is a V15 error naming the record',
+    inverted.length === 1 && inverted[0].severity === 'error' && inverted[0].record?.kind === 'position' && inverted[0].record?.id === 'pos-inverted',
+    JSON.stringify(inverted)
+  );
+  assert(
+    'the V15 message is the resolver sentence about the tokens',
+    inverted[0].message === 'Interval ends before it begins: start="2024-03-10" end="2024-03-01"'
+  );
+  assert(
+    'a record that disputes its own span keeps its envelope instead of failing',
+    iv('position:pos-disputed')?.startLatest === Date.UTC(2024, 2, 10) &&
+      iv('position:pos-disputed')?.endEarliest === Date.UTC(2024, 2, 1) &&
+      iv('position:pos-disputed')?.trimmed === undefined &&
+      !resolved.findings.some((f) => f.record?.id === 'pos-disputed'),
+    JSON.stringify(iv('position:pos-disputed'))
+  );
+  assert(
+    'the failed record keeps its place with the unknown interval as its span',
+    iv('position:pos-inverted')?.status === 'unknown'
+  );
+
+  // check() carries what resolve found.
+  {
+    const checked = engine.check(raw);
+    assert('check fails on the V15 error and reports it', !checked.ok && checked.findings.some((f) => f.rule === 'V15'));
+    assert('check also reports the resolve warnings', checked.findings.some((f) => f.rule === 'V22' && f.record?.id === 'pos-stale'));
+    const clean = engine.check({ ...raw, position: raw.position!.filter((p) => (p as { id: string }).id !== 'pos-inverted') });
+    assert('the same data minus the broken record is ok with only warnings left', clean.ok && clean.findings.every((f) => f.severity === 'warning'), JSON.stringify(clean.findings.map((f) => f.rule)));
+  }
+}
 assert('splicer is built', typeof engine.splicer.applyEdit === 'function');
 assert('canonical is built', typeof engine.canonical.hash === 'function');
 assert(

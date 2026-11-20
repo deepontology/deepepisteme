@@ -13,7 +13,7 @@
 import { createEngine, type ParsedDataset, type RawDataset } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
 import { NO_EXCEPTIONS } from '../src/kernel/exceptions.ts';
-import { V3, V4, V11 } from '../src/atlas/rules/index.ts';
+import { V3, V4, V10, V11, V16, V17, V8 } from '../src/atlas/rules/index.ts';
 import type { RuleContext } from '../src/kernel/rules.ts';
 
 let failures = 0;
@@ -40,6 +40,19 @@ function context(records: Record<string, unknown[]>): RuleContext {
   };
 }
 
+/** The context the runner builds: records as parsed, with the resolved view beside them. */
+function resolvedContext(raw: RawDataset): RuleContext {
+  const parsed = engine.parse(raw);
+  const resolved = engine.resolve(parsed.records);
+  return {
+    records: resolved.records,
+    exceptions: NO_EXCEPTIONS,
+    claimKinds: new Set(),
+    registries: new Set(['company-register']),
+    resolved: { index: resolved.index, basis: resolved.basis, intervals: resolved.intervals, cutoff: engine.time.cutoff }
+  };
+}
+
 const sources = [
   { id: 's-primary', tier: 1 },
   { id: 's-institutional', tier: 2 },
@@ -50,10 +63,236 @@ const sources = [
 // The register
 // ---------------------------------------------------------------------------------------------
 
-assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V3,V4,V11');
-assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.covers?.join(',') === 'V5');
+assert('the atlas rules follow the kernel rules in the register', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V10,V16,V17,V8,V3,V11');
 assert('V3 is an atlas rule that errors', V3.layer === 'atlas' && V3.severity === 'error');
-assert('V11 is an atlas rule that warns', V11.layer === 'atlas' && V11.severity === 'warning');
+assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.covers?.join(',') === 'V5');
+assert(
+  'V16 and V8 are resolved-stage errors, V17 a resolved-stage warning',
+  V16.severity === 'error' && V8.severity === 'error' && V17.severity === 'warning' &&
+    [V16, V17, V8].every((r) => r.layer === 'atlas' && r.needs === 'resolved')
+);
+
+// ---------------------------------------------------------------------------------------------
+// V4/V5: a contract figure is attributed or backed by a primary source
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: pipeline fixtures `ctr-fixture-award-floating` and `-attributed`.
+{
+  const award = { value: '1000000', currency: 'EUR', year: 2016 };
+  const floating = { id: 'ctr-floating', award, sources: ['s-journalism'] };
+  const attributed = { ...floating, id: 'ctr-attributed', attributed_to: 'A reporter quoted in the cited article' };
+  const primary = { ...floating, id: 'ctr-primary', sources: ['s-journalism', 's-institutional'] };
+  const noAward = { id: 'ctr-no-award', sources: ['s-journalism'] };
+  const blank = { ...floating, id: 'ctr-blank', attributed_to: '   ' };
+  const unknownSource = { ...floating, id: 'ctr-unknown-source', sources: ['s-missing'] };
+
+  const run = (contracts: unknown[]) => V4.run(context({ source: sources, contract: contracts }));
+
+  const found = run([floating]);
+  assert('V4/V5: a figure with no attribution and no primary source fails once', found.length === 1, JSON.stringify(found));
+  assert('V4/V5: the finding names the contract', found[0].record?.kind === 'contract' && found[0].record?.id === 'ctr-floating');
+  assert('V4/V5: the finding is an error carrying the id V4', found[0].severity === 'error' && found[0].rule === 'V4');
+  assert('V4/V5: the message names both validators and leaves the record to the finding', /V4\/V5/.test(found[0].message) && !found[0].message.includes('ctr-floating'));
+  assert('V4/V5: the control differs from the failing record by the attribution alone', run([attributed]).length === 0);
+  assert('V4/V5: a tier-2 source passes without an attribution', run([primary]).length === 0);
+  assert('V4/V5: a contract with no award is not checked', run([noAward]).length === 0);
+  assert('V4/V5: a blank attribution does not count', run([blank]).length === 1);
+  assert('V4/V5: a source the register does not know is not primary', run([unknownSource]).length === 1);
+  assert('V4/V5: only the failing contract is named among several', run([floating, attributed, primary, noAward]).map((f) => f.record?.id).join(',') === 'ctr-floating');
+}
+
+// ---------------------------------------------------------------------------------------------
+// V10: the generic half of the geographic hierarchy
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: pipeline fixtures `place-fixture-parentless`, `-offshore` (the schema's bbox check) and `-no-coordinates`.
+{
+  const owned = { person: [{ id: 'p-owner' }], institution: [{ id: 'i-owner' }], role: [{ id: 'r-owner' }] };
+  const run = (places: unknown[]) => V10.run(context({ ...owned, place: places }));
+  const good = { id: 'place-good', kind: 'port', parent: 'region-a', coordinates: [10.5, 36.8] };
+
+  assert('V10: a parented place with coordinates passes', run([good]).length === 0);
+
+  const parentless = run([{ ...good, id: 'place-parentless', parent: undefined }]);
+  assert('V10: a port with no parent region fails once', parentless.length === 1 && parentless[0].severity === 'error', JSON.stringify(parentless));
+  assert('V10: the finding names the place and carries the id V10', parentless[0].record?.kind === 'place' && parentless[0].record?.id === 'place-parentless' && parentless[0].rule === 'V10');
+  assert('V10: a quarter may stand without a parent', run([{ ...good, kind: 'quarter', parent: undefined }]).length === 0);
+  assert('V10: a town may stand without a parent', run([{ ...good, kind: 'town', parent: undefined }]).length === 0);
+
+  const owner = run([{ ...good, id: 'place-owned', owner: 'nobody' }]);
+  assert('V10: an owner that is no graph entity fails', owner.length === 1 && owner[0].severity === 'error' && /unknown owner "nobody"/.test(owner[0].message), JSON.stringify(owner));
+  assert('V10: an owner that is a person, an institution or a role passes', ['p-owner', 'i-owner', 'r-owner'].every((o) => run([{ ...good, owner: o }]).length === 0));
+
+  const bare = run([{ ...good, id: 'place-bare', coordinates: undefined }]);
+  assert('V10: a parented place with no coordinates is a warning', bare.length === 1 && bare[0].severity === 'warning' && /no coordinates/.test(bare[0].message), JSON.stringify(bare));
+  assert('V10: only the failing places are named among several', run([good, { ...good, id: 'place-parentless', parent: undefined }, { ...good, id: 'place-bare', coordinates: undefined }]).map((f) => f.record?.id).join(',') === 'place-parentless,place-bare');
+}
+
+// ---------------------------------------------------------------------------------------------
+// V16: duplicate relationships on the same key with overlapping intervals
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: pipeline fixture `rel-fixture-duplicate`, a synthetic duplicate
+// of an existing family edge with an overlapping interval and no merged_into.
+{
+  const family = (id: string, start: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    from: 'iren-voss',
+    to: 'elena-varn',
+    type: 'family',
+    subtype: 'spouse',
+    start,
+    description: 'A marriage recorded by the press twice over.',
+    confidence: 'B',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const a = family('rel-ruria-family-a', '1992');
+  const b = family('rel-ruria-family-b', '1994');
+
+  const run = (relationships: unknown[]) => V16.run(resolvedContext({ source: sources, relationship: relationships }));
+  const found = run([a, b]);
+
+  assert('V16: two edges on one key with overlapping intervals fail once', found.length === 1, JSON.stringify(found));
+  assert('V16: the finding names the record authored first', found[0].record?.kind === 'relationship' && found[0].record?.id === 'rel-ruria-family-a');
+  assert('V16: the finding is an error carrying the id V16', found[0].severity === 'error' && found[0].rule === 'V16');
+  assert(
+    'V16: the message names the duplicate and the key, and does not repeat the finding\'s own record',
+    found[0].message ===
+      'duplicate of rel-ruria-family-b (iren-voss|elena-varn|family|spouse) with an overlapping interval — merge one into the other (merged_into) or record the conflict (V16)',
+    found[0].message
+  );
+  assert('V16: the control differs by the merge escape alone', run([a, { ...b, merged_into: 'rel-ruria-family-a' }]).length === 0);
+  assert('V16: a different subtype is a different edge', run([a, { ...b, subtype: 'advisor' }]).length === 0);
+  assert('V16: intervals that do not overlap are not duplicates', run([family('rel-ruria-early', '1992', { end: '1994' }), family('rel-ruria-late', '1996')]).length === 0);
+  const toNothing = run([a, { ...b, merged_into: 'rel-ruria-nothing' }]);
+  assert(
+    'V16: a merged_into that names no record is its own finding',
+    toNothing.length === 2 && toNothing.every((f) => f.rule === 'V16' && f.severity === 'error') &&
+      toNothing.some((f) => f.record?.id === 'rel-ruria-family-b' && f.message === 'merged_into names unknown relationship "rel-ruria-nothing" (V16)'),
+    JSON.stringify(toNothing)
+  );
+
+  const base: RawDataset = { source: [{ id: 's-journalism', title: 'A news report', publisher: 'The Herald', date: '2024-03-10', url: 'https://example.invalid/herald', tier: 3, lang: 'en' }] };
+  const checked = engine.check({ ...base, relationship: [a, b] });
+  const named = checked.findings.filter((f) => f.rule === 'V16');
+  assert(
+    'through check, the duplicate pair is the only finding and the run is not ok',
+    !checked.ok && checked.findings.length === 1 && named.length === 1 && named[0].record?.id === 'rel-ruria-family-a',
+    JSON.stringify(checked.findings.map((f) => `${f.rule} ${f.message}`))
+  );
+  const control = engine.check({ ...base, relationship: [a, { ...b, merged_into: 'rel-ruria-family-a' }] });
+  assert('through check, the control is ok with no finding at all', control.ok && control.findings.length === 0, JSON.stringify(control.findings.map((f) => `${f.rule} ${f.message}`)));
+}
+
+// ---------------------------------------------------------------------------------------------
+// V17: a rupture event not linked into the causal graph
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: pipeline fixture `fixture-floating-rupture`, a rupture event
+// linked to nothing.
+{
+  const event = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    date: '2012-01-01',
+    title_en: 'A floating rupture',
+    category: 'political',
+    rupture: true,
+    summary: 'A rupture event linked to nothing, to prove the flag fires.',
+    confidence: 'B',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const floating = event('ev-ruria-floating-rupture');
+  const linked = { ...floating, consequences: ['ev-ruria-reshuffle'] };
+
+  const run = (events: unknown[]) => V17.run(resolvedContext({ source: sources, event: events }));
+  const found = run([floating]);
+
+  assert('V17: a rupture linked to nothing is flagged once', found.length === 1, JSON.stringify(found));
+  assert('V17: the finding is a warning naming the event', found[0].severity === 'warning' && found[0].rule === 'V17' && found[0].record?.kind === 'event' && found[0].record?.id === 'ev-ruria-floating-rupture');
+  assert('V17: the message is the consumer sentence, with no record in it', found[0].message === 'rupture event is not linked into the causal graph (V17)');
+  assert('V17: the control differs by the one consequence link', run([linked]).length === 0);
+  assert('V17: a cause link counts too', run([{ ...floating, causes: ['ev-ruria-reshuffle'] }]).length === 0);
+  assert('V17: an unlinked event that is not a rupture is not flagged', run([{ ...floating, rupture: false }]).length === 0);
+  assert(
+    'V17: only the floating ruptures are flagged among several',
+    run([floating, linked, event('ev-ruria-floating-two')]).map((f) => f.record?.id).join(',') === 'ev-ruria-floating-rupture,ev-ruria-floating-two'
+  );
+
+  const base: RawDataset = { source: [{ id: 's-journalism', title: 'A news report', publisher: 'The Herald', date: '2024-03-10', url: 'https://example.invalid/herald', tier: 3, lang: 'en' }] };
+  const checked = engine.check({ ...base, event: [floating, linked] });
+  const named = checked.findings.filter((f) => f.rule === 'V17');
+  assert(
+    'through check, the floating rupture is warned about and the run stays ok',
+    checked.ok && named.length === 1 && named[0].record?.id === 'ev-ruria-floating-rupture',
+    JSON.stringify(checked.findings.map((f) => `${f.rule} ${f.message}`))
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// V8: a cause cannot begin after its consequence, and a causal cycle fails
+// ---------------------------------------------------------------------------------------------
+
+// deeptunisia: pipeline fixtures `fixture-temporal-consequence` with
+// `fixture-temporal-cause`, and the `fixture-cycle-a`/`fixture-cycle-b` pair.
+{
+  const event = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    date: '2011-01-01',
+    title_en: 'A fixture event',
+    category: 'political',
+    summary: 'A synthetic event for the causal graph checks.',
+    confidence: 'B',
+    sources: ['s-journalism'],
+    ...extra
+  });
+  const consequence = event('ev-ruria-consequence', { causes: ['ev-ruria-cause'] });
+  const lateCause = event('ev-ruria-cause', { date: '2015-01-01' });
+
+  const run = (events: unknown[]) => V8.run(resolvedContext({ source: sources, event: events }));
+  const found = run([consequence, lateCause]);
+
+  assert('V8: a cause that begins after its consequence ends fails once', found.length === 1, JSON.stringify(found));
+  assert('V8: the finding names the consequence', found[0].record?.kind === 'event' && found[0].record?.id === 'ev-ruria-consequence');
+  assert('V8: the finding is an error carrying the id V8', found[0].severity === 'error' && found[0].rule === 'V8');
+  assert(
+    'V8: the message names the cause and its date, and does not repeat the finding\'s own record',
+    found[0].message === 'cause "ev-ruria-cause" (2015-01-01) begins after its consequence ends — reorder or record a dispute (V8)',
+    found[0].message
+  );
+  assert('V8: the control differs by the cause\'s date alone', run([consequence, { ...lateCause, date: '2010-01-01' }]).length === 0);
+  assert(
+    'V8: a consequence that disputes its own dating is not failed',
+    run([{ ...consequence, disputes: [{ claim: 'The dating of the event is contested.', held_by: 'The Herald' }] }, lateCause]).length === 0
+  );
+
+  // A cycle is the only violation this pair has: unknown dates, so the temporal
+  // check cannot fire first.
+  const cycleA = event('ev-ruria-cycle-a', { date: '?', causes: ['ev-ruria-cycle-b'] });
+  const cycleB = event('ev-ruria-cycle-b', { date: '?', causes: ['ev-ruria-cycle-a'] });
+  const cycles = run([cycleA, cycleB]);
+  assert(
+    'V8: a causal cycle fails as its own finding',
+    cycles.length === 1 && cycles[0].rule === 'V8' && cycles[0].severity === 'error' &&
+      /^causal cycle: ev-ruria-cycle-[ab] → ev-ruria-cycle-[ab] \(V8\)$/.test(cycles[0].message),
+    JSON.stringify(cycles)
+  );
+  assert('V8: the cycle finding carries no record, because a cycle is not one record', cycles[0].record === undefined);
+  assert('V8: the control differs by the one edge removed', run([cycleA, { ...cycleB, causes: [] }]).length === 0);
+  assert('V8: an event that causes itself is not a cycle of two', run([event('ev-ruria-self', { causes: ['ev-ruria-self'] })]).length === 0);
+
+  const base: RawDataset = { source: [{ id: 's-journalism', title: 'A news report', publisher: 'The Herald', date: '2024-03-10', url: 'https://example.invalid/herald', tier: 3, lang: 'en' }] };
+  const checked = engine.check({ ...base, event: [consequence, lateCause] });
+  const named = checked.findings.filter((f) => f.rule === 'V8');
+  assert(
+    'through check, the inverted pair is the only finding and the run is not ok',
+    !checked.ok && checked.findings.length === 1 && named.length === 1 && named[0].record?.id === 'ev-ruria-consequence',
+    JSON.stringify(checked.findings.map((f) => `${f.rule} ${f.message}`))
+  );
+  const control = engine.check({ ...base, event: [consequence, { ...lateCause, date: '2010-01-01' }] });
+  assert('through check, the control is ok with no finding at all', control.ok && control.findings.length === 0, JSON.stringify(control.findings.map((f) => `${f.rule} ${f.message}`)));
+}
 
 // ---------------------------------------------------------------------------------------------
 // V3: company registration numbers are valid and unique
@@ -104,35 +343,6 @@ assert('V11 is an atlas rule that warns', V11.layer === 'atlas' && V11.severity 
     belt.length === 1 && belt[0].rule === 'V3' && belt[0].record?.id === 'co-offshore',
     JSON.stringify(belt)
   );
-}
-
-// ---------------------------------------------------------------------------------------------
-// V4/V5: a contract figure is attributed or backed by a primary source
-// ---------------------------------------------------------------------------------------------
-
-// deeptunisia: pipeline fixtures `ctr-fixture-award-floating` and `-attributed`.
-{
-  const award = { value: '1000000', currency: 'EUR', year: 2016 };
-  const floating = { id: 'ctr-floating', award, sources: ['s-journalism'] };
-  const attributed = { ...floating, id: 'ctr-attributed', attributed_to: 'A reporter quoted in the cited article' };
-  const primary = { ...floating, id: 'ctr-primary', sources: ['s-journalism', 's-institutional'] };
-  const noAward = { id: 'ctr-no-award', sources: ['s-journalism'] };
-  const blank = { ...floating, id: 'ctr-blank', attributed_to: '   ' };
-  const unknownSource = { ...floating, id: 'ctr-unknown-source', sources: ['s-missing'] };
-
-  const run = (contracts: unknown[]) => V4.run(context({ source: sources, contract: contracts }));
-
-  const found = run([floating]);
-  assert('V4/V5: a figure with no attribution and no primary source fails once', found.length === 1, JSON.stringify(found));
-  assert('V4/V5: the finding names the contract', found[0].record?.kind === 'contract' && found[0].record?.id === 'ctr-floating');
-  assert('V4/V5: the finding is an error carrying the id V4', found[0].severity === 'error' && found[0].rule === 'V4');
-  assert('V4/V5: the message names both validators and leaves the record to the finding', /V4\/V5/.test(found[0].message) && !found[0].message.includes('ctr-floating'));
-  assert('V4/V5: the control differs from the failing record by the attribution alone', run([attributed]).length === 0);
-  assert('V4/V5: a tier-2 source passes without an attribution', run([primary]).length === 0);
-  assert('V4/V5: a contract with no award is not checked', run([noAward]).length === 0);
-  assert('V4/V5: a blank attribution does not count', run([blank]).length === 1);
-  assert('V4/V5: a source the register does not know is not primary', run([unknownSource]).length === 1);
-  assert('V4/V5: only the failing contract is named among several', run([floating, attributed, primary, noAward]).map((f) => f.record?.id).join(',') === 'ctr-floating');
 }
 
 // ---------------------------------------------------------------------------------------------

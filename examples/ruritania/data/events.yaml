@@ -19,5 +19,8 @@
   institutions: [ministry-infrastructure]
   documents: ["gazette-2024-decree-11"]
   rupture: true
+  # Linked into the causal graph: the concession is what the March reshuffle
+  # answered.
+  consequences: [ev-cabinet-reshuffle-2024]
   confidence: A
   sources: [gazette-2024-decree-11]
