@@ -7,6 +7,7 @@
  * module state.
  */
 
+import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 import { createEngine, type Deployment, type RawDataset } from '../src/engine.ts';
 import { ruritania } from '../examples/ruritania/deployment.ts';
@@ -512,6 +513,44 @@ assert(
     'the legacy engine answers with the Ruritania cutoff',
     legacyEngine.time.cutoff === createEngine(ruritania).time.cutoff
   );
+}
+
+// schemaOf: the schema parse() reads a kind with, for a caller that parses one
+// record at a time.
+{
+  const good = { id: 'pos-ok', role: 'role-infra-minister', holder: 'elena-varn', start: '2022-03-15', end: 'ongoing', sources: ['s-1'] };
+  const unsourced = { id: 'alma-ruric', name_en: 'Alma Ruric', layers: ['political'], confidence: 'B', sources: [] };
+  const live = {
+    sourceExceptions: new Map([['person:alma-ruric', { rule: 'no-source', expires: '2026-12-01', reason: 'source in progress' }]]),
+    basisOverrides: new Map()
+  };
+  const position = engine.schemaOf('position');
+  const person = engine.schemaOf('person');
+  const viaParse = (record: object, register?: typeof live, kind = 'position') => (engine.parse({ [kind]: [record] }, register).records[kind] ?? []).length === 1;
+
+  assert('schemaOf accepts what parse accepts', position.safeParse(good).success === viaParse(good) && viaParse(good));
+  assert('schemaOf rejects what parse rejects', !person.safeParse(unsourced).success && !viaParse(unsourced, undefined, 'person'));
+  assert(
+    'schemaOf closes a claim kind over the register it is given',
+    engine.schemaOf('person', live).safeParse(unsourced).success && viaParse(unsourced, live, 'person')
+  );
+  assert('a register given to one schemaOf call does not reach the next', !engine.schemaOf('person').safeParse(unsourced).success);
+  assert(
+    'schemaOf of a kind with no envelope is its plain schema',
+    engine.schemaOf('role').safeParse({ id: 'role-x', title_en: 'A role', institution: 'ministry-infrastructure', authority: 10, summary: 'A plain role.', sources: ['s-1'] }).success
+  );
+  assert('schemaOf of an unknown kind throws', throwsWith(() => engine.schemaOf('nonsense'), 'no kind "nonsense"'));
+}
+
+// The ./atlas export: the kind schema factories, for a consumer that wants the record types.
+{
+  const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as { exports: Record<string, string> };
+  assert('package.json exports ./atlas', pkg.exports['./atlas'] === './src/atlas/index.ts');
+  const atlas = await import('../src/atlas/index.ts');
+  const factories = Object.keys(atlas).filter((name) => /Schema$/.test(name) && name !== 'relationshipRefines');
+  assert('./atlas exports the seventeen kind factories', factories.length === 17, factories.join(', '));
+  assert('./atlas exports createAtlasKinds', typeof atlas.createAtlasKinds === 'function');
+  assert('every ./atlas kind factory is a function', factories.every((name) => typeof (atlas as Record<string, unknown>)[name] === 'function'));
 }
 
 console.log(`\n  ${passes} passed, ${failures} failed\n`);

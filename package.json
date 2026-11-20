@@ -26,6 +26,7 @@
     ".": "./src/index.ts",
     "./kernel": "./src/kernel/index.ts",
     "./kernel/time": "./src/kernel/time.ts",
+    "./atlas": "./src/atlas/index.ts",
     "./match": "./src/atlas/match.ts"
   }
 }

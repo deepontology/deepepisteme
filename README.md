@@ -120,7 +120,12 @@ The package ships TypeScript source, as its consumers run it. The entry
 points are the exports in `package.json`: `.` (createEngine, createTime,
 atlasDefaults, the types), `./kernel` and `./kernel/time`, the interval
 resolver alone, so a browser bundle that needs only dates pulls in no schema
-library.
+library, and `./atlas`, the seventeen record-kind schema factories
+(`personSchema(literals)` and the rest): `z.infer` of a factory's result is the
+record type, which `engine.kinds` does not carry. A consumer that parses one
+record at a time reads the schema `engine.parse` uses from
+`engine.schemaOf(kind, register?)`, closed over the claim envelope and that
+call's exception register; an unknown kind throws.
 
 The v0.1 import paths `deepepisteme/time`, `/claim`, `/validate`, `/emit`,
 `/match`, `/parameters` are replaced by the exports in `package.json`.
