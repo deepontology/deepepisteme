@@ -229,6 +229,18 @@ const cases: KindCase[] = [
         record: { id: 'rel-4', from: 'elena-varn', to: 'inst-ministry-infra', type: 'board', description: 'A board seat with money attached.', confidence: 'B', sources: ['herald-ruritania-2024-03-10'], finance: { amount: 10, currency: 'EUR', year: 2024 } },
         rule: 'V19',
         message: 'finance metadata is allowed only on funding, sponsorship and ownership edges (V13)'
+      },
+      {
+        name: 'an equity share above 100 percent',
+        record: { id: 'rel-5', from: 'elena-varn', to: 'inst-ministry-infra', type: 'ownership', description: 'A stake recorded above the whole.', confidence: 'B', sources: ['herald-ruritania-2024-03-10'], equity: { pct: 100.5 } },
+        rule: 'V19',
+        message: 'equity.pct'
+      },
+      {
+        name: 'a negative equity share',
+        record: { id: 'rel-6', from: 'elena-varn', to: 'inst-ministry-infra', type: 'ownership', description: 'A stake recorded below nothing.', confidence: 'B', sources: ['herald-ruritania-2024-03-10'], equity: { pct: -1 } },
+        rule: 'V19',
+        message: 'equity.pct'
       }
     ]
   },
@@ -548,6 +560,30 @@ for (const { kind, valid, sourcesRule = 'V19', broken } of cases) {
       (result.records[def.kind] ?? []).length === (raw[def.kind] ?? []).length
     );
   }
+}
+
+// V13: both halves have a control that differs by the one field alone.
+{
+  const edge = (id: string, extra: Record<string, unknown>) => ({
+    id,
+    from: 'elena-varn',
+    to: 'inst-ministry-infra',
+    type: 'ownership',
+    description: 'A stake recorded by the register.',
+    confidence: 'B',
+    sources: ['herald-ruritania-2024-03-10'],
+    ...extra
+  });
+  const parse = (record: Record<string, unknown>) => engine.parse({ relationship: [record] } as RawDataset);
+  assert('V13: an equity share of exactly 100 percent parses clean', parse(edge('rel-c1', { equity: { pct: 100 } })).findings.length === 0);
+  assert('V13: an equity share of exactly 0 percent parses clean', parse(edge('rel-c2', { equity: { pct: 0 } })).findings.length === 0);
+  assert('V13: an equity share of 100.5 is refused and the record is dropped', (() => {
+    const r = parse(edge('rel-c3', { equity: { pct: 100.5 } }));
+    return r.findings.length === 1 && r.findings[0].record?.id === 'rel-c3' && (r.records.relationship ?? []).length === 0;
+  })());
+  assert('V13: finance on a funding edge parses clean', parse(edge('rel-c4', { type: 'funding', finance: { amount: 10, currency: 'EUR', year: 2024 } })).findings.length === 0);
+  assert('V13: finance on an ownership edge parses clean', parse(edge('rel-c5', { finance: { amount: 10, currency: 'EUR', year: 2024 } })).findings.length === 0);
+  assert('V13: finance on a board edge is refused', parse(edge('rel-c6', { type: 'board', finance: { amount: 10, currency: 'EUR', year: 2024 } })).findings.length === 1);
 }
 
 console.log(`\n  ${passes} passed, ${failures} failed\n`);
