@@ -13,6 +13,7 @@
  * function.
  */
 
+import type { z } from 'zod';
 import { deriveSuccessions, type Succession, type SuccessionThresholds } from './atlas/succession.ts';
 import {
   createTime,
@@ -256,6 +257,14 @@ export interface Engine {
    * the rest itself; an id no rule carries is an error, not a silent no-op.
    */
   validate(resolved: ResolvedDataset, options?: { only?: readonly string[] }): Finding[];
+  /**
+   * The schema `parse` reads a kind's records with: the kind's object schema,
+   * closed over the claim envelope for a claim-bearing kind and the register
+   * given here, then any refinements the kind chains after it. For a consumer
+   * that parses records one at a time and wants the engine's schema, not a copy
+   * of it. An unknown kind is an error, not a schema that accepts everything.
+   */
+  schemaOf(kind: string, register?: ExceptionRegister): z.ZodType;
   check(raw: RawDataset, exceptions?: ExceptionRegister): { ok: boolean; findings: Finding[]; resolved?: ResolvedDataset };
   /**
    * V24. The succession chain of every non-seated role over a resolved dataset:
@@ -671,6 +680,13 @@ export function createEngine(deployment: Deployment): Engine {
 
   const rules: readonly Rule[] = Object.freeze([...KERNEL_RULES, ...ATLAS_RULES, ...(deployment.extraRules ?? [])]);
 
+  /** Stage 2.5: the schema a kind is parsed with, for a caller that reads records one at a time. */
+  function schemaOf(kind: string, register?: ExceptionRegister): z.ZodType {
+    const def = kindMap.get(kind);
+    if (!def) throw new Error(`schemaOf: the engine has no kind "${kind}"`);
+    return envelopedSchema(def, convertRegister(register, time.cutoff), deployment.envelopeTexts);
+  }
+
   /**
    * The name matcher: deployment word lists, closed over. Built per call,
    * so the entity set is the caller's and nothing matcher-shaped survives
@@ -691,6 +707,7 @@ export function createEngine(deployment: Deployment): Engine {
     parse,
     resolve,
     validate,
+    schemaOf,
     check(raw: RawDataset, register?: ExceptionRegister) {
       const parsed = parse(raw, register);
       if (parsed.findings.some((f) => f.severity === 'error')) {
