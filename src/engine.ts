@@ -49,6 +49,7 @@ import {
 import {
   NO_EXCEPTIONS,
   convertRegister,
+  type ConvertedExceptions,
   type EnvelopeExceptions,
   type ExceptionRegister
 } from './kernel/exceptions.ts';
@@ -71,6 +72,7 @@ import { createSplicer, type Splicer } from './kernel/splicer.ts';
 import { hash as canonicalHash, project as canonicalProject, type CanonicalOptions } from './kernel/canonical.ts';
 import { createMatcher, type MatchEntity, type Matcher, type MatcherOptions } from './atlas/match.ts';
 import { createAtlasKinds, type AtlasLiterals } from './atlas/kinds/index.ts';
+import { ATLAS_RULES } from './atlas/rules/index.ts';
 
 export type { ResolvedInterval, Time, TimeParameters };
 export type { BasisValue, ConfidenceValue, VerificationValue };
@@ -102,9 +104,17 @@ export type RawDataset = Readonly<Record<string, readonly unknown[]>>;
 export type ParsedDataset = ParsedRecords;
 export interface ResolvedDataset {
   records: ParsedDataset;
+  /**
+   * Intervals by `kind:id`. resolve computes only what a rule needs, so this
+   * fills as the rule families that read it move in; it is empty until then.
+   */
   intervals: ReadonlyMap<string, ResolvedInterval>;
+  /** The derived basis of every claim record, by `kind:id`. */
   basis: ReadonlyMap<string, BasisValue>;
+  /** Every record of every kind, by `kind:id`. */
   index: ReadonlyMap<string, { kind: string; record: { id: string } }>;
+  /** The register this dataset was resolved against, converted once. */
+  exceptions: ConvertedExceptions;
 }
 
 /**
@@ -229,8 +239,13 @@ export interface Engine {
   readonly canonical: Canonical;
 
   parse(raw: RawDataset, exceptions?: ExceptionRegister): { records: ParsedDataset; findings: Finding[] };
-  resolve(records: ParsedDataset): ResolvedDataset;
-  validate(resolved: ResolvedDataset): Finding[];
+  resolve(records: ParsedDataset, exceptions?: ExceptionRegister): ResolvedDataset;
+  /**
+   * Run the register over a resolved dataset. `only` limits the run to the
+   * named rules (an id or an id the rule covers), for a caller that still runs
+   * the rest itself; an id no rule carries is an error, not a silent no-op.
+   */
+  validate(resolved: ResolvedDataset, options?: { only?: readonly string[] }): Finding[];
   check(raw: RawDataset, exceptions?: ExceptionRegister): { ok: boolean; findings: Finding[]; resolved?: ResolvedDataset };
   /**
    * The deterministic name matcher, built from this deployment's word lists
@@ -238,10 +253,6 @@ export interface Engine {
    * answer differently in one process.
    */
   match(entities: readonly MatchEntity[], options?: MatcherOptions): Matcher;
-}
-
-function notBuilt(part: string, slice: number): never {
-  throw new Error(`${part}: not built yet (slice ${slice})`);
 }
 
 function checkList(name: string, list: readonly string[] | undefined): void {
@@ -484,11 +495,59 @@ export function createEngine(deployment: Deployment): Engine {
     return { records, findings };
   }
 
-  function resolve(): never {
-    return notBuilt('resolve', 4);
+  /**
+   * Stage 2. The id index and the derived basis of every claim record: what
+   * the rules read, and nothing the site alone needs. Intervals join as the
+   * families that read them move into the engine.
+   */
+  function resolve(records: ParsedDataset, register?: ExceptionRegister): ResolvedDataset {
+    const index = new Map<string, { kind: string; record: { id: string } }>();
+    const basis = new Map<string, BasisValue>();
+    for (const [kind, list] of Object.entries(records)) {
+      for (const record of list) {
+        const key = `${kind}:${record.id}`;
+        if (!index.has(key)) index.set(key, { kind, record });
+        if (!claimKinds.has(kind)) continue;
+        const r = record as unknown as {
+          confidence?: ConfidenceValue;
+          verification?: VerificationValue;
+          basis?: BasisValue;
+        };
+        if (r.confidence && r.verification) basis.set(key, deriveBasis(r.confidence, r.verification, r.basis));
+      }
+    }
+    return {
+      records,
+      intervals: new Map(),
+      basis,
+      index,
+      exceptions: convertRegister(register, time.cutoff)
+    };
   }
-  function validate(): never {
-    return notBuilt('validate', 4);
+
+  /**
+   * Stage 3. Every rule in register order over the resolved dataset. A rule
+   * that throws is a bug in the rule, not a finding about the data, so it is
+   * not caught here.
+   */
+  function validate(resolved: ResolvedDataset, options?: { only?: readonly string[] }): Finding[] {
+    let selected = rules;
+    if (options?.only) {
+      const known = new Set(rules.flatMap((r) => [r.id, ...(r.covers ?? [])]));
+      const unknown = options.only.filter((id) => !known.has(id));
+      if (unknown.length) throw new Error(`validate: no rule carries ${unknown.join(', ')}`);
+      const wanted = new Set(options.only);
+      selected = rules.filter((r) => wanted.has(r.id) || (r.covers ?? []).some((id) => wanted.has(id)));
+    }
+    const ctx = {
+      records: resolved.records,
+      exceptions: resolved.exceptions,
+      claimKinds,
+      resolved: { index: resolved.index, basis: resolved.basis }
+    };
+    const findings: Finding[] = [];
+    for (const rule of selected) findings.push(...rule.run(ctx));
+    return findings;
   }
 
   const splicer = createSplicer();
@@ -498,7 +557,7 @@ export function createEngine(deployment: Deployment): Engine {
     hash: (dataset: unknown, opts?: CanonicalOptions) => canonicalHash(dataset, opts)
   });
 
-  const rules: readonly Rule[] = Object.freeze([...KERNEL_RULES, ...(deployment.extraRules ?? [])]);
+  const rules: readonly Rule[] = Object.freeze([...KERNEL_RULES, ...ATLAS_RULES, ...(deployment.extraRules ?? [])]);
 
   /**
    * The name matcher: deployment word lists, closed over. Built per call,
@@ -521,13 +580,13 @@ export function createEngine(deployment: Deployment): Engine {
     resolve,
     validate,
     check(raw: RawDataset, register?: ExceptionRegister) {
-      const { findings } = parse(raw, register);
-      if (findings.some((f) => f.severity === 'error')) {
-        return { ok: false, findings };
+      const parsed = parse(raw, register);
+      if (parsed.findings.some((f) => f.severity === 'error')) {
+        return { ok: false, findings: parsed.findings };
       }
-      resolve();
-      validate();
-      return { ok: false, findings };
+      const resolved = resolve(parsed.records, register);
+      const findings = [...parsed.findings, ...validate(resolved)];
+      return { ok: !findings.some((f) => f.severity === 'error'), findings, resolved };
     },
     match
   };

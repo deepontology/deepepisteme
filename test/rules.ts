@@ -50,17 +50,17 @@ const sources = [
 // The register
 // ---------------------------------------------------------------------------------------------
 
-assert('engine.rules carries the three kernel rules', engine.rules.map((r) => r.id).join(',') === 'V12,V25,V27');
+assert('engine.rules carries the three kernel rules', engine.rules.slice(0, 3).map((r) => r.id).join(',') === 'V12,V25,V27');
 assert(
-  'every rule declares its layer, severity and stage',
-  engine.rules.every((r) => r.layer === 'kernel' && r.severity === 'error' && r.needs === 'parsed')
+  'every kernel rule declares its layer, severity and stage',
+  engine.rules.slice(0, 3).every((r) => r.layer === 'kernel' && r.severity === 'error' && r.needs === 'parsed')
 );
 assert(
   'a deployment rule joins the register after the kernel rules',
   (() => {
     const extra = { ...engine.rules[0], id: 'V90' };
     const withExtra: Deployment = { ...ruritania, extraRules: [extra] };
-    return createEngine(withExtra).rules.map((r) => r.id).join(',') === 'V12,V25,V27,V90';
+    return createEngine(withExtra).rules.map((r) => r.id).join(',') === 'V12,V25,V27,V4,V90';
   })()
 );
 
