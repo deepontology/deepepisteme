@@ -87,12 +87,17 @@ async function main(): Promise<number> {
   const records = resolved?.records ?? engine.parse(raw as RawDataset, register).records;
 
   const errors = findings.filter((f) => f.severity === 'error');
+  /** A finding names its record once: parse findings already carry it in the message, rule findings carry it beside it. */
+  const show = (f: (typeof findings)[number]) => {
+    const where = f.record ? `${f.record.kind} ${f.record.id}: ` : '';
+    return `${f.rule} ${where && !f.message.startsWith(where) ? where : ''}${f.message}`;
+  };
   const warnings = findings.filter((f) => f.severity !== 'error');
-  for (const f of warnings) console.log(`  ⚠ ${f.rule} ${f.message}`);
+  for (const f of warnings) console.log(`  ⚠ ${show(f)}`);
 
   if (errors.length > 0) {
     console.error(`\n  ✗ check failed with ${errors.length} error(s):\n`);
-    for (const f of errors) console.error(`    • ${f.rule} ${f.message}`);
+    for (const f of errors) console.error(`    • ${show(f)}`);
     return 1;
   }
 

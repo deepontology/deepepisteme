@@ -39,7 +39,7 @@ export const V4: Rule = Object.freeze({
         rule: 'V4',
         severity: 'error',
         record: { kind: 'contract', id },
-        message: `contract ${id}: award.value must be attributed or backed by a primary source (tier ≤ 2): numbers never float free (V4/V5)`
+        message: 'award.value must be attributed or backed by a primary source (tier ≤ 2): numbers never float free (V4/V5)'
       });
     }
     return findings;

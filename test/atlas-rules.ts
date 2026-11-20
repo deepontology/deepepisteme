@@ -68,7 +68,7 @@ assert('V4 is an atlas rule that also covers V5', V4.layer === 'atlas' && V4.cov
   assert('V4/V5: a figure with no attribution and no primary source fails once', found.length === 1, JSON.stringify(found));
   assert('V4/V5: the finding names the contract', found[0].record?.kind === 'contract' && found[0].record?.id === 'ctr-floating');
   assert('V4/V5: the finding is an error carrying the id V4', found[0].severity === 'error' && found[0].rule === 'V4');
-  assert('V4/V5: the message names both validators', /V4\/V5/.test(found[0].message));
+  assert('V4/V5: the message names both validators and leaves the record to the finding', /V4\/V5/.test(found[0].message) && !found[0].message.includes('ctr-floating'));
   assert('V4/V5: the control differs from the failing record by the attribution alone', run([attributed]).length === 0);
   assert('V4/V5: a tier-2 source passes without an attribution', run([primary]).length === 0);
   assert('V4/V5: a contract with no award is not checked', run([noAward]).length === 0);
