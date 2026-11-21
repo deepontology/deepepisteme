@@ -3,9 +3,9 @@
  * the graph node and the corporate record can never desync.
  *
  * `registration.registry` must name one of the deployment's listed
- * registries. The `capital` object's amount field is carried under the name
- * the consumer's records have always written it (an ISO 4217 code), because
- * the port must keep the same fields.
+ * registries. The `capital` object carries an `amount`, the ISO 4217 `currency`
+ * it is stated in, and the balance-sheet `date`: the engine names no currency
+ * of its own, so a deployment's records say which one they use.
  *
  * Ported from the consumer's schema.
  */
@@ -44,7 +44,13 @@ export function companySchema(l: AtlasLiterals) {
       .default('active'),
     founded: dateToken.optional(),
     /** Capital is a claim about a balance-sheet date: numbers never float free. */
-    capital: z.strictObject({ tnd: z.number().positive(), date: dateToken }).optional(),
+    capital: z
+      .strictObject({
+        amount: z.number().positive(),
+        currency: z.string().regex(/^[A-Z]{3}$/, 'currency must be a three-letter ISO 4217 code in capitals'),
+        date: dateToken
+      })
+      .optional(),
     state_owned: z.boolean().default(false),
     activities: z.array(z.string()).default([]),
     /** Place id. */

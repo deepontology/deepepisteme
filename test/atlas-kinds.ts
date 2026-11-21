@@ -324,6 +324,7 @@ const cases: KindCase[] = [
       legal_name_en: 'Ruritanian Railways Ltd',
       legal_form: 'state company',
       registration: { registry: 'company-register', number: 'CRN-1001', date: '1962-09-01' },
+      capital: { amount: 5000000, currency: 'TND', date: '2021-12-31' },
       state_owned: true,
       activities: ['rail transport'],
       notes: ['The register lists the company under its founding decree.'],
@@ -331,7 +332,10 @@ const cases: KindCase[] = [
     },
     broken: [
       { name: 'a registry outside the deployment list', record: { id: 'comp-1', registration: { registry: 'offshore-register', number: '1', date: '2020-01-01' }, sources: ['gazette-2022-decree-44'] }, rule: 'V19', message: "registry must be one of the jurisdiction's registries" },
-      { name: 'a negative capital', record: { id: 'comp-2', capital: { tnd: -5, date: '2020-01-01' }, sources: ['gazette-2022-decree-44'] }, rule: 'V19' },
+      { name: 'a negative capital', record: { id: 'comp-2', capital: { amount: -5, currency: 'TND', date: '2020-01-01' }, sources: ['gazette-2022-decree-44'] }, rule: 'V19' },
+      { name: 'a capital with no currency', record: { id: 'comp-5', capital: { amount: 5, date: '2020-01-01' }, sources: ['gazette-2022-decree-44'] }, rule: 'V19' },
+      { name: 'a currency that is not an ISO 4217 code in capitals', record: { id: 'comp-6', capital: { amount: 5, currency: 'dinar', date: '2020-01-01' }, sources: ['gazette-2022-decree-44'] }, rule: 'V19' },
+      { name: 'the amount under a currency-named key', record: { id: 'comp-7', capital: { tnd: 5, currency: 'TND', date: '2020-01-01' }, sources: ['gazette-2022-decree-44'] }, rule: 'V19' },
       { name: 'a status outside the taxonomy', record: { id: 'comp-3', status: 'bankrupt', sources: ['gazette-2022-decree-44'] }, rule: 'V19' },
       { name: 'an undeclared key', record: { id: 'comp-4', turnover: 'high', sources: ['gazette-2022-decree-44'] }, rule: 'V19' }
     ]
