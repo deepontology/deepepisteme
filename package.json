@@ -1,6 +1,6 @@
 {
   "name": "deepepisteme",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "type": "module",
   "description": "DeepEpisteme — reusable epistemic infrastructure for evidence-graded corpora. Tunisia is the first deployment.",
   "scripts": {
