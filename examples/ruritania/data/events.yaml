@@ -1,0 +1,26 @@
+# Ruritania — events: dated turning points.
+
+- id: ev-cabinet-reshuffle-2024
+  date: "2024-03-10"
+  title_en: "Cabinet reshuffle at the Ministry of Infrastructure"
+  category: political
+  summary: "The prime minister moved the infrastructure portfolio; Varn left the ministry."
+  actors: [elena-varn, marco-tell]
+  institutions: [ministry-infrastructure]
+  confidence: B
+  sources: [herald-ruritania-2024-03-10]
+
+- id: ev-transport-concession-2024
+  date: "2024-02-01"
+  title_en: "Transport concession decree published"
+  category: economic
+  summary: "Gazette Decree 11/2024 awarded a transport concession overseen by the ministry."
+  actors: [iren-voss]
+  institutions: [ministry-infrastructure]
+  documents: ["gazette-2024-decree-11"]
+  rupture: true
+  # Linked into the causal graph: the concession is what the March reshuffle
+  # answered.
+  consequences: [ev-cabinet-reshuffle-2024]
+  confidence: A
+  sources: [gazette-2024-decree-11]

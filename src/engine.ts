@@ -1,0 +1,751 @@
+/**
+ * engine.ts: the one entry point: createEngine(deployment).
+ *
+ * An engine holds its whole configuration. Two engines in one process do not
+ * see each other, because nothing here is module state: the deployment arrives
+ * as an argument and everything below closes over it.
+ *
+ * Slice 0 builds the pieces it moves: the time model and the claim envelope.
+ * Slice 1 adds the canonical projection and the splicer. Slice 2 adds the kind
+ * register, parse() and the first three rules. Slice 5 adds the name matcher,
+ * built from the deployment's word lists. The rest of the interface is
+ * present and throws, so a caller meets a named wall, not an undefined
+ * function.
+ */
+
+import type { z } from 'zod';
+import { deriveSuccessions, type Succession, type SuccessionThresholds } from './atlas/succession.ts';
+import {
+  createTime,
+  type ResolvedInterval,
+  type Time,
+  type TimeParameters
+} from './kernel/time.ts';
+import {
+  Basis,
+  Confidence,
+  Verification,
+  deriveBasis,
+  isBasisUpgrade,
+  type BasisValue,
+  type ConfidenceValue,
+  type VerificationValue
+} from './kernel/basis.ts';
+import {
+  REQUIRED_SOURCE_KINDS,
+  SCHEMA_RULE,
+  issueRule,
+  nonBlank,
+  slug,
+  withClaimEnvelope as envelopeBuilder,
+  type EnvelopeTexts,
+  type ExceptionSource
+} from './kernel/envelope.ts';
+import {
+  DisputeSchema,
+  ReviewSchema as ReviewSchemaT,
+  createReviewSchema,
+  reviewOverclaims as reviewOverclaimsIn,
+  type GazetteVocabulary
+} from './kernel/review.ts';
+import {
+  NO_EXCEPTIONS,
+  convertRegister,
+  type ConvertedExceptions,
+  type EnvelopeExceptions,
+  type ExceptionRegister
+} from './kernel/exceptions.ts';
+import {
+  KERNEL_KIND_NAMES,
+  createKernelKinds,
+  envelopedSchema,
+  objectSchemaOf,
+  type KindDefinition,
+  type KindLiterals
+} from './kernel/kinds.ts';
+import {
+  KERNEL_RULES,
+  type Finding,
+  type ParsedRecords,
+  type Rule,
+  type RuleContext
+} from './kernel/rules.ts';
+import { createSplicer, type Splicer } from './kernel/splicer.ts';
+import { hash as canonicalHash, project as canonicalProject, type CanonicalOptions } from './kernel/canonical.ts';
+import { createMatcher, type MatchEntity, type Matcher, type MatcherOptions } from './atlas/match.ts';
+import { createAtlasKinds, type AtlasLiterals } from './atlas/kinds/index.ts';
+import { ATLAS_RULES } from './atlas/rules/index.ts';
+import { DATED_KINDS } from './atlas/resolve.ts';
+
+export type { ResolvedInterval, Time, TimeParameters };
+export type { BasisValue, ConfidenceValue, VerificationValue };
+export type { EnvelopeExceptions, ExceptionRegister, ExceptionSource };
+export type { KindDefinition } from './kernel/kinds.ts';
+export type { Succession, SuccessionGap, SuccessionOverlap, SuccessionThresholds } from './atlas/succession.ts';
+export type { Finding, Rule, RuleContext } from './kernel/rules.ts';
+export type {
+  Match,
+  MatchEntity,
+  Matcher,
+  MatcherOptions,
+  MatcherStats,
+  MatcherWords,
+  RuleName
+} from './atlas/match.ts';
+export type { EnvelopeTexts, SourceRelationValue } from './kernel/envelope.ts';
+export type { ReviewSchema } from './kernel/review.ts';
+
+// ---------------------------------------------------------------------------------------------
+// The pipeline
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Records as loaded from YAML, keyed by kind. parse() is what types them.
+ * ParsedDataset carries an entry for every registered kind, empty when the
+ * dataset has no records of it.
+ */
+export type RawDataset = Readonly<Record<string, readonly unknown[]>>;
+export type ParsedDataset = ParsedRecords;
+export interface ResolvedDataset {
+  records: ParsedDataset;
+  /**
+   * Intervals by `kind:id`, for every dated record kind. A problem resolving
+   * one record's interval is a finding, never a missing entry: the record
+   * keeps its place with the unknown interval as its span.
+   */
+  intervals: ReadonlyMap<string, ResolvedInterval>;
+  /** The derived basis of every claim record, by `kind:id`. */
+  basis: ReadonlyMap<string, BasisValue>;
+  /** Every record of every kind, by `kind:id`. */
+  index: ReadonlyMap<string, { kind: string; record: { id: string } }>;
+  /** The register this dataset was resolved against, converted once. */
+  exceptions: ConvertedExceptions;
+  /**
+   * What resolving the intervals themselves discovered: an interval that ends
+   * before it begins (V15, error) and an `ongoing` downgraded for want of a
+   * dated observation (V22, warning).
+   */
+  findings: readonly Finding[];
+}
+
+/**
+ * Splicer. Moves upstream from deeptunisia scripts/emit.ts: seven edit
+ * operations and the self-check that the rest of the file did not move. The
+ * target travels inside the edit, so a call is `applyEdit(text, edit)`.
+ */
+export type { Edit, EmitResult, Records, Splice, Splicer, Target } from './kernel/splicer.ts';
+
+/**
+ * Canonical bytes and the dataset hash. Moves upstream from scripts/canonical.ts.
+ * `drop` names the fields a deployment emits but the hash must ignore, so the
+ * one hash is reachable without a branch in the kernel.
+ */
+export interface Canonical {
+  project(dataset: unknown, opts?: CanonicalOptions): unknown;
+  hash(dataset: unknown, opts?: CanonicalOptions): string;
+}
+export type { CanonicalOptions };
+
+// ---------------------------------------------------------------------------------------------
+// Deployment: everything that is about one country or one subject
+// ---------------------------------------------------------------------------------------------
+
+export interface Deployment {
+  name: string;
+  time: TimeParameters;
+
+  /** Languages prose is translated into. */
+  translatedLocales: readonly string[];
+  /** Languages a source may be written in. */
+  sourceLanguages: readonly string[];
+
+  /** How a primary source is recognised. */
+  gazette: GazetteVocabulary;
+  registry: { label: string; idLabel: string; registries: readonly string[] };
+  bbox: { lonMin: number; lonMax: number; latMin: number; latMax: number };
+
+  /** Labels a review may be signed with, beyond a person's handle. */
+  reviewerLabels: readonly string[];
+
+  /**
+   * The words an envelope finding carries that a deployment owns: where its
+   * escapes are registered (a published file name), and which rule id a
+   * basis-override finding names after the pair. A deployment that passes
+   * both gets its published message strings back; the defaults name a
+   * register and no rule, so the engine itself names no file.
+   */
+  envelopeTexts?: EnvelopeTexts;
+
+  /** Scoring parameters used by derived indexes. */
+  index: { discount: Record<BasisValue, number> };
+
+  /** Vocabulary. Each list starts from the atlas default and may add or drop entries. */
+  vocabulary: {
+    layers: readonly string[];
+    institutionTypes: readonly string[];
+    relationshipTypes: readonly string[];
+    edgeDirection: Readonly<Record<string, 'directed' | 'symmetric' | 'contextual'>>;
+    influenceChannels: readonly string[];
+    agreementKinds: readonly string[];
+    placeKinds: readonly string[];
+    regionKinds: readonly string[];
+  };
+
+  /**
+   * Name-matcher word lists: the naming conventions of one deployment's
+   * country, in folded form or any form foldable to it. The matcher itself
+   * is engine code (engine.match); these lists are data.
+   */
+  matcher: {
+    particles: readonly string[];
+    functionWords: readonly string[];
+    splittablePrefixes: readonly string[];
+    surnameHeads: readonly string[];
+  };
+
+  /** Record kinds only this deployment has. */
+  extraKinds?: readonly KindDefinition[];
+  /** Rules only this deployment has. */
+  extraRules?: readonly Rule[];
+}
+
+// ---------------------------------------------------------------------------------------------
+// The engine
+// ---------------------------------------------------------------------------------------------
+
+/** The envelope helpers of one engine, wired to that engine's deployment. */
+export interface Envelope {
+  readonly exceptions: EnvelopeExceptions;
+  nonBlank(v: unknown, min?: number): boolean;
+  /**
+   * The kernel builder, unchanged. It is exposed here so a caller reaches the
+   * envelope through the engine, and the deployment reaches it through the
+   * gazette check; the generic is kept so record types stay inferred.
+   */
+  withClaimEnvelope: typeof envelopeBuilder;
+  deriveBasis(
+    confidence: ConfidenceValue,
+    verification: VerificationValue,
+    explicit?: BasisValue
+  ): BasisValue;
+  isBasisUpgrade(authored: BasisValue, derived: BasisValue): boolean;
+  reviewOverclaims(method: string | undefined, sources: readonly string[]): boolean;
+  readonly Confidence: typeof Confidence;
+  readonly Basis: typeof Basis;
+  readonly Verification: typeof Verification;
+  /** The strict review object, built from this deployment's reviewer labels. */
+  readonly ReviewSchema: ReviewSchemaT;
+  readonly DisputeSchema: typeof DisputeSchema;
+  readonly slug: typeof slug;
+  readonly requiredSourceKinds: ReadonlySet<string>;
+}
+
+export interface Engine {
+  readonly deployment: Deployment;
+  readonly time: Time;
+  readonly envelope: Envelope;
+  readonly kinds: ReadonlyMap<string, KindDefinition>;
+  readonly rules: readonly Rule[];
+  readonly splicer: Splicer;
+  readonly canonical: Canonical;
+
+  parse(raw: RawDataset, exceptions?: ExceptionRegister): { records: ParsedDataset; findings: Finding[] };
+  resolve(records: ParsedDataset, exceptions?: ExceptionRegister): ResolvedDataset;
+  /**
+   * Run the register over a resolved dataset. `only` limits the run to the
+   * named rules (an id or an id the rule covers), for a caller that still runs
+   * the rest itself; an id no rule carries is an error, not a silent no-op.
+   */
+  validate(resolved: ResolvedDataset, options?: { only?: readonly string[] }): Finding[];
+  /**
+   * The schema `parse` reads a kind's records with: the kind's object schema,
+   * closed over the claim envelope for a claim-bearing kind and the register
+   * given here, then any refinements the kind chains after it. For a consumer
+   * that parses records one at a time and wants the engine's schema, not a copy
+   * of it. An unknown kind is an error, not a schema that accepts everything.
+   *
+   * The register may be a function. It is then read again at every parse, so a
+   * schema built once at start-up answers with the register as it stands when a
+   * record is parsed, not as it stood when the schema was built.
+   */
+  schemaOf(kind: string, register?: ExceptionRegister | (() => ExceptionRegister | undefined)): z.ZodType;
+  check(raw: RawDataset, exceptions?: ExceptionRegister): { ok: boolean; findings: Finding[]; resolved?: ResolvedDataset };
+  /**
+   * V24. The succession chain of every non-seated role over a resolved dataset:
+   * each position's predecessor and successor, the handovers that left a gap
+   * and the holders who certainly overlapped. The thresholds are the caller's,
+   * published beside the counts so the counts can be recomputed. A derivation,
+   * not a rule: it raises no finding.
+   */
+  successions(resolved: ResolvedDataset, thresholds: SuccessionThresholds): Succession;
+  /**
+   * The deterministic name matcher, built from this deployment's word lists
+   * over the entities a caller passes in. Two engines with different lists
+   * answer differently in one process.
+   */
+  match(entities: readonly MatchEntity[], options?: MatcherOptions): Matcher;
+}
+
+function checkList(name: string, list: readonly string[] | undefined): void {
+  if (!Array.isArray(list) || list.length === 0) {
+    throw new Error(`deployment: ${name} must be a non-empty list`);
+  }
+  if (new Set(list).size !== list.length) {
+    throw new Error(`deployment: ${name} has a duplicate entry`);
+  }
+}
+
+const DIRECTIONS = new Set(['directed', 'symmetric', 'contextual']);
+const BASIS_VALUES: readonly BasisValue[] = ['documented', 'reported', 'inferred', 'unsubstantiated'];
+
+function validateDeployment(d: Deployment): void {
+  if (typeof d?.name !== 'string' || !nonBlank(d.name, 2)) {
+    throw new Error('deployment: name must be at least 2 non-blank characters');
+  }
+
+  checkList('translatedLocales', d.translatedLocales);
+  checkList('sourceLanguages', d.sourceLanguages);
+  if (!d.sourceLanguages.includes('en')) {
+    throw new Error('deployment: sourceLanguages must include "en", the default the source kind applies');
+  }
+  checkList('gazette.vocabulary', d.gazette?.vocabulary);
+  checkList('gazette.sourcePrefixes', d.gazette?.sourcePrefixes);
+  checkList('registry.registries', d.registry?.registries);
+
+  const v = d.vocabulary;
+  checkList('vocabulary.layers', v?.layers);
+  checkList('vocabulary.institutionTypes', v?.institutionTypes);
+  checkList('vocabulary.relationshipTypes', v?.relationshipTypes);
+  checkList('vocabulary.influenceChannels', v?.influenceChannels);
+  checkList('vocabulary.agreementKinds', v?.agreementKinds);
+  checkList('vocabulary.placeKinds', v?.placeKinds);
+  checkList('vocabulary.regionKinds', v?.regionKinds);
+
+  const types = new Set(v.relationshipTypes);
+  const directed = Object.keys(v.edgeDirection ?? {});
+  for (const type of v.relationshipTypes) {
+    const dir = v.edgeDirection?.[type];
+    if (!dir) throw new Error(`deployment: edgeDirection has no entry for relationship type "${type}"`);
+    if (!DIRECTIONS.has(dir)) {
+      throw new Error(`deployment: edgeDirection["${type}"] is "${dir}", not one of directed, symmetric, contextual`);
+    }
+  }
+  for (const key of directed) {
+    if (!types.has(key)) {
+      throw new Error(`deployment: edgeDirection names "${key}", which is not a relationship type`);
+    }
+  }
+
+  for (const list of ['particles', 'functionWords', 'splittablePrefixes', 'surnameHeads'] as const) {
+    const words = d.matcher?.[list];
+    if (!Array.isArray(words)) throw new Error(`deployment: matcher.${list} must be a list`);
+    if (new Set(words).size !== words.length) {
+      throw new Error(`deployment: matcher.${list} has a duplicate entry`);
+    }
+  }
+
+  if (!Array.isArray(d.reviewerLabels)) {
+    throw new Error('deployment: reviewerLabels must be a list (it may be empty)');
+  }
+  for (const label of d.reviewerLabels) {
+    if (typeof label !== 'string' || !nonBlank(label, 2)) {
+      throw new Error('deployment: every reviewer label must be at least 2 non-blank characters');
+    }
+  }
+
+  if (d.envelopeTexts !== undefined) {
+    const texts = d.envelopeTexts as { exceptionFile?: unknown; basisOverrideRule?: unknown };
+    if (texts.exceptionFile !== undefined && (typeof texts.exceptionFile !== 'string' || !nonBlank(texts.exceptionFile))) {
+      throw new Error('deployment: envelopeTexts.exceptionFile must be a non-blank string when present');
+    }
+    if (
+      texts.basisOverrideRule !== undefined &&
+      (typeof texts.basisOverrideRule !== 'string' || !nonBlank(texts.basisOverrideRule))
+    ) {
+      throw new Error('deployment: envelopeTexts.basisOverrideRule must be a non-blank string when present');
+    }
+  }
+
+  for (const basis of BASIS_VALUES) {
+    const weight = d.index?.discount?.[basis];
+    if (typeof weight !== 'number' || !(weight >= 0) || !(weight <= 1)) {
+      throw new Error(`deployment: index.discount.${basis} must be a number between 0 and 1`);
+    }
+  }
+
+  if (d.extraKinds) {
+    const seen = new Set<string>();
+    for (const k of d.extraKinds) {
+      if (!nonBlank(k.kind)) throw new Error('deployment: extraKinds entries need a kind name');
+      if ((KERNEL_KIND_NAMES as readonly string[]).includes(k.kind)) {
+        throw new Error(`deployment: extraKinds names "${k.kind}", which is a kernel kind`);
+      }
+      if (seen.has(k.kind)) throw new Error(`deployment: extraKinds repeats "${k.kind}"`);
+      if (k.layer !== 'kernel' && k.layer !== 'atlas' && k.layer !== 'deployment') {
+        throw new Error(`deployment: extraKinds "${k.kind}" has no valid layer`);
+      }
+      if (k.bearsClaims) objectSchemaOf(k);
+      seen.add(k.kind);
+    }
+  }
+  if (d.extraRules) {
+    const seen = new Set<string>();
+    for (const r of d.extraRules) {
+      if (!nonBlank(r.id)) throw new Error('deployment: extraRules entries need an id');
+      if (seen.has(r.id)) throw new Error(`deployment: extraRules repeats "${r.id}"`);
+      seen.add(r.id);
+    }
+  }
+}
+
+/**
+ * The only way to get an Engine. Validates the deployment (a malformed one is a
+ * programming error, not a data finding) and returns self-contained functions.
+ */
+export function createEngine(deployment: Deployment): Engine {
+  validateDeployment(deployment);
+
+  const time = createTime(deployment.time);
+
+  /** The review schema is the deployment's: its labels decide who may sign. */
+  const review = createReviewSchema(deployment.reviewerLabels);
+
+  const literals: KindLiterals = {
+    sourceLanguages: deployment.sourceLanguages,
+    translatedLocales: deployment.translatedLocales,
+    review
+  };
+
+  /** The atlas kinds' literals: the vocabulary and the box are the deployment's. */
+  const atlasLiterals: AtlasLiterals = {
+    name: deployment.name,
+    translatedLocales: deployment.translatedLocales,
+    review,
+    institutionTypes: deployment.vocabulary.institutionTypes,
+    layers: deployment.vocabulary.layers,
+    relationshipTypes: deployment.vocabulary.relationshipTypes,
+    influenceChannels: deployment.vocabulary.influenceChannels,
+    agreementKinds: deployment.vocabulary.agreementKinds,
+    placeKinds: deployment.vocabulary.placeKinds,
+    registries: deployment.registry.registries,
+    bbox: deployment.bbox
+  };
+
+  const kinds: KindDefinition[] = [
+    ...createKernelKinds(literals),
+    ...createAtlasKinds(atlasLiterals),
+    ...(deployment.extraKinds ?? [])
+  ];
+  const kindMap: ReadonlyMap<string, KindDefinition> = new Map(kinds.map((k) => [k.kind, k]));
+  const claimKinds: ReadonlySet<string> = new Set(kinds.filter((k) => k.bearsClaims).map((k) => k.kind));
+  /** The registries a company registration may name, for the rules that read them. */
+  const registries: ReadonlySet<string> = new Set(deployment.registry.registries);
+
+  const envelope: Envelope = Object.freeze({
+    exceptions: NO_EXCEPTIONS,
+    nonBlank,
+    withClaimEnvelope: envelopeBuilder,
+    deriveBasis,
+    isBasisUpgrade,
+    reviewOverclaims: (method: string | undefined, sources: readonly string[]) =>
+      reviewOverclaimsIn(deployment.gazette, method, sources),
+    Confidence,
+    Basis,
+    Verification,
+    ReviewSchema: review,
+    DisputeSchema,
+    slug,
+    requiredSourceKinds: REQUIRED_SOURCE_KINDS
+  });
+
+  /**
+   * Stage 1. Every record through its kind's schema; a schema-level problem is
+   * a finding, never a thrown error. The register is converted once per call,
+   * so it is the register this call was given that decides which records parse
+   * and which findings stand.
+   */
+  function parse(raw: RawDataset, register?: ExceptionRegister): { records: ParsedDataset; findings: Finding[] } {
+    const exceptions = convertRegister(register, time.cutoff);
+    const findings: Finding[] = [];
+
+    for (const entry of exceptions.expired) {
+      findings.push({
+        rule: entry.findingRule,
+        severity: 'error',
+        ...(entry.record ? { record: entry.record } : {}),
+        message: `the exception "${entry.key}" no longer counts: ${entry.detail}; source the record, fix it, or re-justify it with a new deadline`
+      });
+    }
+
+    const records: Record<string, { id: string }[]> = {};
+    const named = Object.keys(raw);
+    const order = [...kindMap.keys(), ...named.filter((kind) => !kindMap.has(kind))];
+
+    for (const kind of order) {
+      const def = kindMap.get(kind);
+      if (!def) {
+        findings.push({
+          rule: SCHEMA_RULE,
+          severity: 'error',
+          message: `unknown kind "${kind}": the engine has no schema for it, so its records are not read`
+        });
+        continue;
+      }
+
+      const out: { id: string }[] = [];
+      records[kind] = out;
+      const list = raw[kind];
+      if (list === undefined) continue;
+      if (!Array.isArray(list)) {
+        findings.push({
+          rule: SCHEMA_RULE,
+          severity: 'error',
+          message: `kind "${kind}" must be a list of records`
+        });
+        continue;
+      }
+
+      const schema = envelopedSchema(def, exceptions, deployment.envelopeTexts);
+      list.forEach((entry, index) => {
+        const label = recordLabel(entry, index);
+        const result = schema.safeParse(entry);
+        if (result.success) {
+          out.push(result.data as { id: string });
+          return;
+        }
+        for (const issue of result.error.issues) {
+          const path = issue.path.length ? `${issue.path.join('.')}: ` : '';
+          findings.push({
+            rule: issueRule(issue),
+            severity: 'error',
+            record: { kind, id: label },
+            message: `${kind} ${label}: ${path}${issue.message}`
+          });
+        }
+      });
+    }
+
+    return { records, findings };
+  }
+
+  /**
+   * Stage 2. The id index, the derived basis of every claim record and the
+   * interval of every dated record: what the rules read, and nothing the site
+   * alone needs.
+   *
+   * An interval is settled the way the consumer's build settles it: `ongoing`
+   * is checked against the record's latest dated source and downgraded (with a
+   * warning) when no observation is recent enough, and a dated end past the
+   * cutoff is pulled back to it and marked `trimmed`, so nothing is ever
+   * asserted past the horizon. A record whose interval cannot resolve at all
+   * is a finding (V15), not a thrown error: the record keeps its place with
+   * the unknown interval as its span.
+   */
+  function resolve(records: ParsedDataset, register?: ExceptionRegister): ResolvedDataset {
+    const index = new Map<string, { kind: string; record: { id: string } }>();
+    const basis = new Map<string, BasisValue>();
+    for (const [kind, list] of Object.entries(records)) {
+      for (const record of list) {
+        const key = `${kind}:${record.id}`;
+        if (!index.has(key)) index.set(key, { kind, record });
+        if (!claimKinds.has(kind)) continue;
+        const r = record as unknown as {
+          confidence?: ConfidenceValue;
+          verification?: VerificationValue;
+          basis?: BasisValue;
+        };
+        if (r.confidence && r.verification) basis.set(key, deriveBasis(r.confidence, r.verification, r.basis));
+      }
+    }
+
+    const intervals = new Map<string, ResolvedInterval>();
+    const findings: Finding[] = [];
+
+    // Latest publication date among a record's sources: the observation an
+    // `ongoing` interval is settled against. An undated source contributes
+    // nothing, so an interval citing only those cannot be confirmed at the
+    // cutoff.
+    const sourceDates = new Map<string, number>();
+    for (const source of (records.source ?? []) as unknown as { id?: unknown; date?: unknown }[]) {
+      if (typeof source.id !== 'string' || typeof source.date !== 'string') continue;
+      const t = Date.parse(source.date);
+      if (!Number.isNaN(t)) sourceDates.set(source.id, t);
+    }
+
+    for (const dated of DATED_KINDS) {
+      for (const record of (records[dated.kind] ?? []) as unknown as Record<string, unknown>[]) {
+        const id = typeof record.id === 'string' ? record.id : '';
+        const spec = dated.spec(record);
+        const opts = dated.allowEnvelopeTrim
+          ? { allowEnvelopeTrim: dated.allowEnvelopeTrim(record) }
+          : undefined;
+
+        let interval: ResolvedInterval;
+        try {
+          interval = time.resolveInterval(spec.start ?? undefined, spec.end ?? undefined, opts);
+        } catch (e) {
+          // V15: the resolver's own message names the tokens; the finding
+          // names the record. The fallback keeps the record's place in the
+          // index so the rest of the run can still reach it.
+          findings.push({
+            rule: 'V15',
+            severity: 'error',
+            record: { kind: dated.kind, id },
+            message: (e as Error).message
+          });
+          interval = time.resolveInterval(undefined, undefined, opts);
+        }
+
+        if (dated.settled) {
+          if (interval.status === 'ongoing') {
+            let latest: number | null = null;
+            for (const sourceId of Array.isArray(record.sources) ? record.sources : []) {
+              if (typeof sourceId !== 'string') continue;
+              const t = sourceDates.get(sourceId);
+              if (t !== undefined && (latest === null || t > latest)) latest = t;
+            }
+            const settled = time.applyOngoingObservation(interval, latest);
+            if (settled.status !== 'ongoing') {
+              findings.push({
+                rule: 'V22',
+                severity: 'warning',
+                record: { kind: dated.kind, id },
+                message: 'ongoing with no source dated within 90 days of the cutoff — downgraded to last-verified'
+              });
+            }
+            interval = settled;
+          }
+
+          if (interval.endLatest !== null && interval.endLatest > time.cutoff) {
+            // The cutoff contract: the authored token stays in `raw` and the
+            // clamp is published as `trimmed` (V22). A start that can now fall
+            // after the lowered end is clamped down to it and flagged.
+            const endLatest = time.cutoff;
+            const endEarliest = interval.endEarliest !== null ? Math.min(interval.endEarliest, endLatest) : null;
+            const startLatest = interval.startLatest > endLatest ? endLatest : interval.startLatest;
+            interval = {
+              ...interval,
+              endEarliest,
+              endLatest,
+              startLatest,
+              startClamped: interval.startClamped || startLatest < interval.startLatest,
+              lastObserved: interval.lastObserved !== null ? Math.min(interval.lastObserved, endLatest) : null,
+              trimmed: true
+            };
+          }
+        }
+
+        intervals.set(`${dated.kind}:${id}`, interval);
+      }
+    }
+
+    return {
+      records,
+      intervals,
+      basis,
+      index,
+      exceptions: convertRegister(register, time.cutoff),
+      findings
+    };
+  }
+
+  /**
+   * Stage 3. Every rule in register order over the resolved dataset. A rule
+   * that throws is a bug in the rule, not a finding about the data, so it is
+   * not caught here.
+   */
+  function validate(resolved: ResolvedDataset, options?: { only?: readonly string[] }): Finding[] {
+    let selected = rules;
+    if (options?.only) {
+      const known = new Set(rules.flatMap((r) => [r.id, ...(r.covers ?? [])]));
+      const unknown = options.only.filter((id) => !known.has(id));
+      if (unknown.length) throw new Error(`validate: no rule carries ${unknown.join(', ')}`);
+      const wanted = new Set(options.only);
+      selected = rules.filter((r) => wanted.has(r.id) || (r.covers ?? []).some((id) => wanted.has(id)));
+    }
+    const ctx = {
+      records: resolved.records,
+      exceptions: resolved.exceptions,
+      claimKinds,
+      registries,
+      resolved: { index: resolved.index, basis: resolved.basis, intervals: resolved.intervals, cutoff: time.cutoff }
+    };
+    const findings: Finding[] = [];
+    for (const rule of selected) findings.push(...rule.run(ctx));
+    return findings;
+  }
+
+  const splicer = createSplicer();
+
+  const canonical: Canonical = Object.freeze({
+    project: (dataset: unknown, opts?: CanonicalOptions) => canonicalProject(dataset, opts),
+    hash: (dataset: unknown, opts?: CanonicalOptions) => canonicalHash(dataset, opts)
+  });
+
+  const rules: readonly Rule[] = Object.freeze([...KERNEL_RULES, ...ATLAS_RULES, ...(deployment.extraRules ?? [])]);
+
+  /** Stage 2.5: the schema a kind is parsed with, for a caller that reads records one at a time. */
+  function schemaOf(
+    kind: string,
+    register?: ExceptionRegister | (() => ExceptionRegister | undefined)
+  ): z.ZodType {
+    const def = kindMap.get(kind);
+    if (!def) throw new Error(`schemaOf: the engine has no kind "${kind}"`);
+    const exceptions =
+      typeof register === 'function'
+        ? () => convertRegister(register(), time.cutoff)
+        : convertRegister(register, time.cutoff);
+    return envelopedSchema(def, exceptions, deployment.envelopeTexts);
+  }
+
+  /**
+   * The name matcher: deployment word lists, closed over. Built per call,
+   * so the entity set is the caller's and nothing matcher-shaped survives
+   * between engines.
+   */
+  function match(entities: readonly MatchEntity[], options?: MatcherOptions): Matcher {
+    return createMatcher(entities, deployment.matcher, options);
+  }
+
+  const engine: Engine = {
+    deployment,
+    time,
+    envelope,
+    kinds: kindMap,
+    rules,
+    splicer,
+    canonical,
+    parse,
+    resolve,
+    validate,
+    schemaOf,
+    check(raw: RawDataset, register?: ExceptionRegister) {
+      const parsed = parse(raw, register);
+      if (parsed.findings.some((f) => f.severity === 'error')) {
+        return { ok: false, findings: parsed.findings };
+      }
+      const resolved = resolve(parsed.records, register);
+      const findings = [...parsed.findings, ...resolved.findings, ...validate(resolved)];
+      return { ok: !findings.some((f) => f.severity === 'error'), findings, resolved };
+    },
+    successions(resolved: ResolvedDataset, thresholds: SuccessionThresholds) {
+      return deriveSuccessions({ records: resolved.records, intervals: resolved.intervals, cutoff: time.cutoff }, thresholds);
+    },
+    match
+  };
+
+  return Object.freeze(engine);
+}
+
+/** The record label a finding names: the authored id, or its position. */
+function recordLabel(entry: unknown, index: number): string {
+  if (entry && typeof entry === 'object' && 'id' in entry) {
+    const id = (entry as { id: unknown }).id;
+    if (typeof id === 'string' && id.length > 0) return id;
+  }
+  return `#${index}`;
+}
+
+/** The atlas defaults a deployment starts from. */
+export { atlasDefaults } from './atlas/vocabulary.ts';
+export { createTime };

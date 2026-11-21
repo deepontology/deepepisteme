@@ -1,0 +1,22 @@
+# Ruritania — positions: who held which office when.
+
+- id: pos-varn-minister-2022
+  role: role-infra-minister
+  holder: elena-varn
+  start: "2022-03-15"
+  end: "2024-03-10"
+  sources: [gazette-2022-decree-44]
+
+- id: pos-tell-deputy-2022
+  role: role-infra-deputy
+  holder: marco-tell
+  start: "2022-03-15"
+  end: ongoing
+  sources: [herald-ruritania-2024-03-10]
+
+- id: pos-kern-leader-2021
+  role: role-union-leader
+  holder: sofia-kern
+  start: "2021-01-20"
+  end: ongoing
+  sources: [herald-ruritania-2024-03-10]

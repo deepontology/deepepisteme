@@ -1,0 +1,32 @@
+# Synthetic jurisdiction: Ruritania: hypotheses (not real).
+#
+# A hypothesis states what it claims, how well the data supports it, and what
+# evidence would overturn the verdict. The falsifier is mandatory, and it is
+# anchored to the verdict: a negative verdict must name what would move it.
+
+- id: h-concession-shuffle
+  label: The 2024 reshuffle followed a concession dispute
+  statement: The infrastructure reshuffle followed a dispute over transport concession terms, not a personal break.
+  support: moderate
+  reasoning: Both published accounts place the reshuffle in the week the concession decision was deferred, and neither quotes the minister.
+  falsifiable_by: A cabinet minute or a resignation letter that names a different cause.
+  sources: [herald-ruritania-2024-03-10, gazette-2024-decree-11]
+  evidence:
+    - falsifier_part: a published account naming a different cause
+      finding: neutral
+      evidence: The Herald account names the concession file but does not state the cause of the move.
+      falsifier_progress: Partial. One account is read; the cabinet minute is still missing.
+      confidence: C
+      verification: needs-primary-source
+      attributed_to: Ruritanian Herald
+      reasoning: The account is a single secondary report and names no source inside the cabinet.
+      falsifiable_by: A second account that quotes a cabinet participant.
+      sources: [herald-ruritania-2024-03-10]
+
+- id: h-rector-appointment-undocumented
+  label: The 2020 rector appointment has no gazette record
+  statement: No gazette decree records the 2020 rector appointment, so the date rests on press reporting alone.
+  support: insufficient
+  reasoning: The statistical yearbook lists the office but not the appointment date, and no decree has been found.
+  falsifiable_by: A gazette decree issued in 2020 that names the rector and the appointment date.
+  sources: [ruritania-statistical-office-2023]

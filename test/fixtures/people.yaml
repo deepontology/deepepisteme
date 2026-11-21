@@ -1,0 +1,36 @@
+- id: vodrik
+  name_en: Aleks Vodrik
+  tagline: Held the interior ministry through two constitutions
+  summary: >-
+    A folded block scalar that runs over several lines, so the splicer has to
+    find the line break that terminates it and not just the last visible
+    character of the prose.
+  summary_fr: >-
+    Un texte replié sur plusieurs lignes, écrit pour que le test trouve la fin
+    du bloc et non le dernier caractère visible.
+  birth: "1903-08-03"
+  death: "2000-04-06"
+  confidence: A
+  sources: [gazette-1949-07, archive-vodrik]
+  layers: [political, security]
+
+- id: halbeck
+  name_en: Mira Halbeck
+  tagline: A judge who outlasted three governments
+  summary: >-
+    A second folded block scalar, shorter than the first.
+  birth: "1911-02-17"
+  death: "1988-11-30"
+  confidence: B
+  sources: [gazette-1961-02]
+  layers: [judicial]
+
+- id: zorn
+  name_en: Petr Zorn
+  tagline: Ran the state printing house
+  birth: "1920-05-05"
+  death: ongoing
+  confidence: C
+  sources: [interview-zorn]
+  layers: [administrative]
+

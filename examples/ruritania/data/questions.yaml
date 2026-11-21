@@ -1,0 +1,32 @@
+# Synthetic jurisdiction: Ruritania: open research questions (not real).
+#
+# A question is scaffolding. An answer is a claim and carries its own standing:
+# basis, confidence, verification, attribution, reasoning, falsifier and at
+# least one source, and it renders with that standing rather than as a fact.
+
+- id: q-varn-reshuffle-reason
+  question: Why did the 2024 cabinet reshuffle move the infrastructure minister?
+  kind: analytical
+  status: partial
+  relates_to: [elena-varn, marco-tell]
+  references:
+    - person: marco-tell
+      role: role-deputy-minister-infrastructure
+      on: "2024-03-10"
+      note: The reshuffle promoted the deputy into the same post.
+  notes: Two published accounts give different reasons. Neither is a primary record.
+  answer: The reshuffle followed a transport concession dispute, not a personal break.
+  basis: reported
+  confidence: C
+  verification: needs-primary-source
+  attributed_to: Ruritanian Herald
+  reasoning: Two accounts describe the same concession dispute in the same week.
+  falsifiable_by: A published cabinet minute that names a different reason.
+  sources: [herald-ruritania-2024-03-10]
+
+- id: q-rector-tenure-source
+  question: Is there a gazette record of the 2020 rector appointment?
+  kind: verification
+  status: open
+  relates_to: [jan-holt]
+  notes: The appointment is reported but no decree text has been located.

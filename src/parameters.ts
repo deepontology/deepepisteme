@@ -15,6 +15,7 @@
  */
 
 import { z } from 'zod';
+import { atlasDefaults } from './atlas/vocabulary.ts';
 
 export const ParametersSchema = z.strictObject({
   jurisdiction: z.strictObject({
@@ -82,9 +83,7 @@ export const DEFAULT_PARAMETERS: Parameters = {
     beforeWindowYears: 8,
     approxSlackDays: { year: 365, month: 92 }
   },
-  index: {
-    discount: { documented: 1, reported: 0.55, inferred: 0.2, unsubstantiated: 0 }
-  }
+  index: atlasDefaults.index
 };
 
 let active: Parameters = DEFAULT_PARAMETERS;

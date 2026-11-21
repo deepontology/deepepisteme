@@ -1,0 +1,29 @@
+- id: p-interior-vodrik
+  person: vodrik
+  institution: ministry-interior
+  role: minister
+  start: "1956-04-15"
+  end: "1961-07-20"
+  confidence: A
+  sources: [gazette-1956-05]
+  disputes:
+    - claim: The appointment date reads as April in one gazette index and May in another
+      held_by: State gazette index
+      status: open
+    - claim: The end date is given as July or August
+      held_by: Archive catalogue
+      status: open
+
+- id: p-courts-halbeck
+  person: halbeck
+  institution: high-court
+  role: presiding judge
+  start: "1961-09-01"
+  end: "1974-12-31"
+  confidence: B
+  sources: [gazette-1961-09]
+  disputes:
+    - claim: One source gives the start as October
+      held_by: Court register
+      status: open
+

@@ -1,0 +1,29 @@
+# Synthetic jurisdiction: Ruritania: independent verifications (not real).
+#
+# A verification is evidence that a second reader checked one record under the
+# study protocol. It is its own kind on purpose: an editorial review and an
+# independent check are never added together.
+
+- id: v-minister-appointment-2022
+  claim: "position:pos-varn-minister-2022"
+  kind: position
+  basis: documented
+  date: "2026-04-18"
+  by: second reader
+  method: Study rubric, blinded to the editorial grade
+  blinded: true
+  outcome: supported
+  sources: [gazette-2022-decree-44]
+  note: The decree names the post and the date. The end date was not checked.
+
+- id: v-reshuffle-cause-2024
+  claim: "question:q-varn-reshuffle-reason"
+  kind: question
+  basis: reported
+  date: "2026-04-18"
+  by: second reader
+  method: Study rubric, blinded to the editorial grade
+  blinded: true
+  outcome: insufficient_evidence
+  sources: [herald-ruritania-2024-03-10]
+  note: One secondary account is not enough to reach the stated answer.
